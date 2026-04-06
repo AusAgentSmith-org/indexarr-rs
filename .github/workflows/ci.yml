@@ -16,6 +16,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Configure git for private deps
+        run: |
+          git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -33,12 +39,20 @@ jobs:
 
       - name: Check
         run: cargo check --workspace
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: "true"
 
       - name: Clippy
         run: cargo clippy --workspace -- -D warnings || true
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: "true"
 
       - name: Test
         run: cargo test --workspace
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: "true"
 
       - name: Build release
         run: cargo build --release
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: "true"
