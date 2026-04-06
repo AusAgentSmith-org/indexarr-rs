@@ -32,11 +32,9 @@ indexarr-identity = { path = "crates/indexarr-identity" }
 indexarr-search = { path = "crates/indexarr-search" }
 indexarr-web = { path = "crates/indexarr-web" }
 
-# Phase 2+
-# indexarr-parser = { path = "crates/indexarr-parser" }
-# indexarr-classifier = { path = "crates/indexarr-classifier" }
-# indexarr-tmdb = { path = "crates/indexarr-tmdb" }
-# indexarr-dht = { path = "crates/indexarr-dht" }
+indexarr-dht = { path = "crates/indexarr-dht" }
+
+# Phase 4+
 # indexarr-announcer = { path = "crates/indexarr-announcer" }
 # indexarr-sync = { path = "crates/indexarr-sync" }
 

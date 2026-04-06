@@ -8,3 +8,34 @@ license.workspace = true
 workspace = true
 
 [dependencies]
+indexarr-core.workspace = true
+indexarr-parser = { path = "../indexarr-parser" }
+indexarr-classifier = { path = "../indexarr-classifier" }
+
+# DHT library (re-exports Id20 from librtbit-core)
+dht = { git = "https://github.com/AusAgentSmith-org/librtbit-dht.git", tag = "v0.1.0", package = "librtbit-dht", default-features = false }
+
+# Async
+tokio.workspace = true
+tokio-util.workspace = true
+tokio-stream = "0.1"
+futures = "0.3"
+
+# Database
+sqlx.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Util
+tracing.workspace = true
+thiserror.workspace = true
+chrono.workspace = true
+dashmap.workspace = true
+parking_lot.workspace = true
+rand.workspace = true
+hex.workspace = true
+sha1 = "0.10"
+
+[patch.crates-io]
