@@ -60,8 +60,27 @@ async fn acknowledge_onboarding(
 async fn get_bans(
     State(_state): State<Arc<AppState>>,
 ) -> Json<serde_json::Value> {
-    // Ban list managed separately; return empty for now
     Json(serde_json::json!({ "bans": {}, "total": 0 }))
+}
+
+async fn get_epoch_info(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    let epoch = indexarr_sync::epoch::get_current_epoch(&state.settings.data_dir);
+    let decl = indexarr_sync::epoch::get_declaration(&state.settings.data_dir);
+
+    Json(serde_json::json!({
+        "epoch": epoch,
+        "reason": decl.as_ref().map(|d| d.reason.as_str()),
+        "effective_at": decl.as_ref().map(|d| d.effective_at.to_rfc3339()),
+        "seed_contributors": decl.as_ref().map(|d| &d.seed_contributors).unwrap_or(&vec![]),
+        "seed_only_hours": decl.as_ref().map(|d| d.seed_only_hours).unwrap_or(0.0),
+        "seed_only_active": indexarr_sync::epoch::in_seed_only_mode(&state.settings.data_dir),
+        "signature_valid": decl.as_ref().map(|d| {
+            indexarr_sync::epoch::verify_declaration(d, &state.settings.swarm_maintainer_pubkey)
+        }).unwrap_or(false),
+        "maintainer_pubkey_set": !state.settings.swarm_maintainer_pubkey.is_empty(),
+    }))
 }
 
 pub fn router() -> Router<Arc<AppState>> {
@@ -70,4 +89,5 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/identity/restore", post(restore_identity))
         .route("/identity/acknowledge", post(acknowledge_onboarding))
         .route("/identity/bans", get(get_bans))
+        .route("/identity/epoch", get(get_epoch_info))
 }

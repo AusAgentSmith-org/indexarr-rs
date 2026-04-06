@@ -29,6 +29,7 @@ url.workspace = true
 parking_lot.workspace = true
 indexarr-parser = { path = "../indexarr-parser" }
 indexarr-classifier = { path = "../indexarr-classifier" }
+indexarr-sync = { path = "../indexarr-sync" }
 sha1 = "0.10"
 hex.workspace = true
 base32.workspace = true

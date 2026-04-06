@@ -1,5 +1,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 
 use indexarr_core::config::Settings;
 use indexarr_identity::ContributorIdentity;
@@ -11,6 +12,7 @@ pub struct AppState {
     pub pool: PgPool,
     pub settings: Settings,
     pub identity: RwLock<ContributorIdentity>,
+    pub started_at: Instant,
     ready: AtomicBool,
 }
 
@@ -20,6 +22,7 @@ impl AppState {
             pool,
             settings,
             identity: RwLock::new(identity),
+            started_at: Instant::now(),
             ready: AtomicBool::new(false),
         })
     }

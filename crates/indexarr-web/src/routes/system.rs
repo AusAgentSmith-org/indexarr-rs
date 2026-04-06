@@ -34,6 +34,8 @@ async fn system_status(
         "debug": state.settings.debug,
         "total_hashes": total,
         "resolved_hashes": resolved,
+        "uptime_seconds": state.started_at.elapsed().as_secs_f64(),
+        "data_dir": state.settings.data_dir.display().to_string(),
     })))
 }
 
@@ -138,6 +140,38 @@ async fn set_sync_preferences(
     }))
 }
 
+// --- Logs ---
+
+async fn get_recent_logs() -> Json<serde_json::Value> {
+    // Log capture not yet implemented — return empty
+    Json(serde_json::json!({
+        "entries": [],
+        "categories": ["system", "dht", "resolver", "announcer", "sync", "api"],
+        "debug_enabled": false,
+    }))
+}
+
+async fn get_log_categories() -> Json<serde_json::Value> {
+    Json(serde_json::json!(["system", "dht", "resolver", "announcer", "sync", "api"]))
+}
+
+async fn toggle_debug() -> Json<serde_json::Value> {
+    Json(serde_json::json!({ "debug_enabled": false }))
+}
+
+// WebSocket log streaming — stub that accepts the connection then closes
+async fn logs_ws(ws: axum::extract::WebSocketUpgrade) -> impl axum::response::IntoResponse {
+    ws.on_upgrade(|mut socket| async move {
+        use axum::extract::ws::Message;
+        // Send a keepalive, then hold connection open
+        let _ = socket.send(Message::Text(
+            serde_json::json!({"type": "connected", "message": "log streaming not yet implemented"}).to_string().into()
+        )).await;
+        // Hold connection until client disconnects
+        while let Some(Ok(_)) = socket.recv().await {}
+    })
+}
+
 fn db_err(e: sqlx::Error) -> (axum::http::StatusCode, String) {
     tracing::error!(error = %e, "database error");
     (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
@@ -149,4 +183,8 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/system/apikey", get(get_api_key))
         .route("/system/apikey/generate", post(generate_api_key))
         .route("/system/sync/preferences", get(get_sync_preferences).post(set_sync_preferences))
+        .route("/system/logs/recent", get(get_recent_logs))
+        .route("/system/logs/categories", get(get_log_categories))
+        .route("/system/logs/debug", post(toggle_debug))
+        .route("/system/logs/ws", get(logs_ws))
 }
