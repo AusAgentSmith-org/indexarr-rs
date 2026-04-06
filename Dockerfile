@@ -1,7 +1,7 @@
 # =============================================================================
 # Stage 1: Build Vue 3 UI
 # =============================================================================
-FROM node:22-alpine AS ui-builder
+FROM node:25-alpine AS ui-builder
 
 WORKDIR /ui
 COPY ui/package.json ui/package-lock.json* ./
