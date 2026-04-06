@@ -9,6 +9,7 @@ pub mod social;
 pub mod identity;
 pub mod system;
 pub mod crud;
+pub mod sync;
 
 use std::sync::Arc;
 
@@ -28,4 +29,5 @@ pub fn api_router(_state: Arc<AppState>) -> Router<Arc<AppState>> {
         .merge(identity::router())
         .merge(system::router())
         .merge(crud::router())
+        .merge(sync::router())
 }

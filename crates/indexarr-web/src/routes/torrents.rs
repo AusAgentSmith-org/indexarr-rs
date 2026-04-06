@@ -31,7 +31,11 @@ struct TorrentDetail {
     content: Option<serde_json::Value>,
     files: Vec<FileItem>,
     tags: Vec<String>,
-    vote_sum: i64,
+    magnet_uri: String,
+    vote_score: i64,
+    comment_count: i64,
+    nuke_count: i64,
+    user_vote: Option<i32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -111,16 +115,46 @@ async fn get_torrent(
         .await
         .map_err(db_err)?;
 
-    // Vote sum
-    let vote_sum: i64 = sqlx::query_scalar("SELECT COALESCE(SUM(value), 0) FROM torrent_votes WHERE info_hash = $1")
+    // Vote score
+    let vote_score: i64 = sqlx::query_scalar("SELECT COALESCE(SUM(value), 0) FROM torrent_votes WHERE info_hash = $1")
         .bind(&hash)
         .fetch_one(pool)
         .await
         .map_err(db_err)?;
 
+    // Comment count
+    let comment_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM torrent_comments WHERE info_hash = $1 AND deleted = FALSE")
+        .bind(&hash)
+        .fetch_one(pool)
+        .await
+        .map_err(db_err)?;
+
+    // Nuke count
+    let nuke_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM nuke_suggestions WHERE info_hash = $1 AND reviewed = FALSE")
+        .bind(&hash)
+        .fetch_one(pool)
+        .await
+        .map_err(db_err)?;
+
+    // Build magnet URI
+    let name = row.get::<Option<String>, _>("name");
+    let info_hash_val: String = row.get("info_hash");
+    let dn = name.as_deref().unwrap_or(&info_hash_val);
+    let trackers_val: Option<serde_json::Value> = row.get("trackers");
+    let tracker_params = match &trackers_val {
+        Some(serde_json::Value::Array(arr)) => {
+            arr.iter()
+                .filter_map(|v| v.as_str())
+                .map(|t| format!("&tr={t}"))
+                .collect::<String>()
+        }
+        _ => "&tr=udp://tracker.opentrackr.org:1337/announce&tr=udp://open.stealth.si:80/announce".to_string(),
+    };
+    let magnet_uri = format!("magnet:?xt=urn:btih:{info_hash_val}&dn={dn}{tracker_params}");
+
     Ok(Json(TorrentDetail {
-        info_hash: row.get("info_hash"),
-        name: row.get("name"),
+        info_hash: info_hash_val,
+        name,
         size: row.get("size"),
         piece_length: row.get("piece_length"),
         piece_count: row.get("piece_count"),
@@ -131,14 +165,18 @@ async fn get_torrent(
         seed_count: row.get("seed_count"),
         peer_count: row.get("peer_count"),
         nfo: row.get("nfo"),
-        trackers: row.get("trackers"),
+        trackers: trackers_val,
         announced_at: row.get::<Option<DateTime<Utc>>, _>("announced_at").map(|d| d.to_rfc3339()),
         epoch: row.get("epoch"),
         contributor_id: row.get("contributor_id"),
         content,
         files,
         tags: tag_rows,
-        vote_sum,
+        magnet_uri,
+        vote_score,
+        comment_count,
+        nuke_count,
+        user_vote: None, // Would need fingerprint from request
     }))
 }
 

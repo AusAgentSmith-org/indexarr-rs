@@ -29,7 +29,9 @@ struct CommentResponse {
     nickname: String,
     body: String,
     created_at: String,
+    edited_at: Option<String>,
     deleted: bool,
+    is_own: bool,
 }
 
 async fn get_comments(
@@ -38,7 +40,7 @@ async fn get_comments(
 ) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, String)> {
     let hash = info_hash.to_lowercase();
     let rows = sqlx::query(
-        "SELECT id, parent_id, nickname, body, created_at, deleted FROM torrent_comments \
+        "SELECT id, parent_id, nickname, body, created_at, edited_at, deleted, fingerprint FROM torrent_comments \
          WHERE info_hash = $1 ORDER BY created_at ASC"
     )
     .bind(&hash)
@@ -52,7 +54,9 @@ async fn get_comments(
         nickname: r.get("nickname"),
         body: if r.get::<bool, _>("deleted") { "[deleted]".into() } else { r.get("body") },
         created_at: r.get::<DateTime<Utc>, _>("created_at").to_rfc3339(),
+        edited_at: r.get::<Option<DateTime<Utc>>, _>("edited_at").map(|d| d.to_rfc3339()),
         deleted: r.get("deleted"),
+        is_own: false, // Would need fingerprint from request
     }).collect();
 
     Ok(Json(serde_json::json!({
@@ -107,7 +111,9 @@ async fn create_comment(
         nickname: body.nickname,
         body: body.body,
         created_at: row.get::<DateTime<Utc>, _>("created_at").to_rfc3339(),
+        edited_at: None,
         deleted: false,
+        is_own: true,
     }))
 }
 
@@ -299,6 +305,23 @@ async fn review_nuke(
     Ok(Json(serde_json::json!({ "status": "reviewed" })))
 }
 
+async fn delete_comment(
+    State(state): State<Arc<AppState>>,
+    Path((_info_hash, comment_id)): Path<(String, i32)>,
+) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, String)> {
+    // Soft delete — set deleted flag and replace body
+    sqlx::query(
+        "UPDATE torrent_comments SET deleted = TRUE, body = '[deleted]', edited_at = NOW() \
+         WHERE id = $1"
+    )
+    .bind(comment_id)
+    .execute(&state.pool)
+    .await
+    .map_err(db_err)?;
+
+    Ok(Json(serde_json::json!({ "status": "deleted" })))
+}
+
 #[derive(Debug, Deserialize)]
 struct LimitParam {
     limit: Option<i64>,
@@ -310,8 +333,10 @@ fn db_err(e: sqlx::Error) -> (axum::http::StatusCode, String) {
 }
 
 pub fn router() -> Router<Arc<AppState>> {
+    use axum::routing::delete;
     Router::new()
         .route("/torrent/{info_hash}/comments", get(get_comments).post(create_comment))
+        .route("/torrent/{info_hash}/comments/{comment_id}", delete(delete_comment))
         .route("/torrent/{info_hash}/votes", get(get_votes))
         .route("/torrent/{info_hash}/vote", post(cast_vote))
         .route("/torrent/{info_hash}/nuke", post(suggest_nuke))

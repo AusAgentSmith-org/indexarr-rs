@@ -31,6 +31,7 @@ indexarr-parser = { path = "../indexarr-parser" }
 indexarr-classifier = { path = "../indexarr-classifier" }
 indexarr-sync = { path = "../indexarr-sync" }
 sha1 = "0.10"
+sha2.workspace = true
 hex.workspace = true
 base32.workspace = true
 rand.workspace = true
