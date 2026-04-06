@@ -1286,11 +1286,14 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "dotenvy",
+ "indexarr-announcer",
  "indexarr-core",
  "indexarr-dht",
  "indexarr-identity",
  "indexarr-search",
+ "indexarr-sync",
  "indexarr-web",
+ "parking_lot",
  "tokio",
  "tokio-util",
  "tracing",
@@ -1300,6 +1303,21 @@ dependencies = [
 [[package]]
 name = "indexarr-announcer"
 version = "0.1.0"
+dependencies = [
+ "chrono",
+ "hex 0.4.3",
+ "indexarr-core",
+ "rand 0.8.5",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "url",
+]
 
 [[package]]
 name = "indexarr-classifier"
@@ -1396,6 +1414,26 @@ dependencies = [
 [[package]]
 name = "indexarr-sync"
 version = "0.1.0"
+dependencies = [
+ "base64",
+ "chrono",
+ "dashmap",
+ "flate2",
+ "hex 0.4.3",
+ "indexarr-core",
+ "indexarr-identity",
+ "parking_lot",
+ "rand 0.8.5",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "thiserror",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
 
 [[package]]
 name = "indexarr-tmdb"
