@@ -48,7 +48,7 @@ parking_lot.workspace = true
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
-repository = "https://github.com/AusAgentSmith-org/indexarr-rs"
+repository = "http://100.92.54.45:3002/indexarr/indexarr-rs"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
