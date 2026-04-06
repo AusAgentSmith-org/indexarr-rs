@@ -13,7 +13,7 @@ RUN npm run build
 # =============================================================================
 # Stage 2: Build Rust binary
 # =============================================================================
-FROM rust:1.86-bookworm AS rust-builder
+FROM rust:1-bookworm AS rust-builder
 
 WORKDIR /build
 
