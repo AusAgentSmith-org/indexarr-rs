@@ -17,22 +17,23 @@ FROM rust:1.86-bookworm AS rust-builder
 
 WORKDIR /build
 
-# Configure git for private dependencies
+# Configure git for private dependencies (persists in /root/.gitconfig)
 ARG GH_PAT=""
-RUN if [ -n "$GH_PAT" ]; then \
-      git config --global url."https://${GH_PAT}@github.com/".insteadOf "https://github.com/"; \
-    fi
 ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
+RUN git config --global url."https://${GH_PAT}@github.com/".insteadOf "https://github.com/"
 
 # Cache dependencies by building a dummy project first
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ crates/
-RUN mkdir -p src && echo 'fn main() {}' > src/main.rs
-RUN cargo build --release 2>/dev/null || true
+RUN mkdir -p src && echo 'fn main() {}' > src/main.rs && \
+    cargo build --release 2>/dev/null || true
 
 # Build the real binary
 COPY src/ src/
 RUN touch src/main.rs && cargo build --release
+
+# Remove git credentials from final layer
+RUN rm -f /root/.gitconfig
 
 # =============================================================================
 # Stage 3: Runtime image (minimal)
