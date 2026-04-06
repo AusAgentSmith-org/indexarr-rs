@@ -292,29 +292,23 @@ fn url_encode_hash(bytes: &[u8]) -> String {
 }
 
 /// Parse a bencoded scrape response for seed/peer counts.
-/// Format: d5:filesd20:<hash>d8:completei<N>e10:downloadedi<N>e10:incompletei<N>eeee
 fn parse_scrape_response(data: &[u8], info_hash: &[u8]) -> Option<(i32, i32)> {
-    // Simple bencode parser for scrape responses
-    let data_str = String::from_utf8_lossy(data);
-
-    // Find the info_hash in the response
+    // Find the info_hash in the raw bytes
     let hash_pos = data.windows(20).position(|w| w == info_hash)?;
+    let after = &data[hash_pos + 20..];
 
-    // Look for completei<N>e and incompletei<N>e after the hash
-    let after = &data_str[hash_pos + 20..];
-
-    let seeds = extract_bencode_int(after, "complete")?;
-    let peers = extract_bencode_int(after, "incomplete").unwrap_or(0);
+    // Extract integers from the bencode after the hash
+    let seeds = extract_bencode_int_bytes(after, b"8:complete")?;
+    let peers = extract_bencode_int_bytes(after, b"10:incomplete").unwrap_or(0);
 
     Some((seeds, peers))
 }
 
-fn extract_bencode_int(data: &str, key: &str) -> Option<i32> {
-    let pattern = format!("{}:", key.len());
-    let key_pattern = format!("{pattern}{key}");
-    let pos = data.find(&key_pattern)?;
-    let after_key = &data[pos + key_pattern.len()..];
-    if !after_key.starts_with('i') { return None; }
-    let end = after_key.find('e')?;
-    after_key[1..end].parse().ok()
+fn extract_bencode_int_bytes(data: &[u8], key: &[u8]) -> Option<i32> {
+    let pos = data.windows(key.len()).position(|w| w == key)?;
+    let after_key = &data[pos + key.len()..];
+    // Expect 'i' <digits> 'e'
+    if after_key.first() != Some(&b'i') { return None; }
+    let end = after_key.iter().position(|&b| b == b'e')?;
+    std::str::from_utf8(&after_key[1..end]).ok()?.parse().ok()
 }
