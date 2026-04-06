@@ -17,6 +17,13 @@ FROM rust:1.86-bookworm AS rust-builder
 
 WORKDIR /build
 
+# Configure git for private dependencies
+ARG GH_PAT=""
+RUN if [ -n "$GH_PAT" ]; then \
+      git config --global url."https://${GH_PAT}@github.com/".insteadOf "https://github.com/"; \
+    fi
+ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
+
 # Cache dependencies by building a dummy project first
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ crates/
