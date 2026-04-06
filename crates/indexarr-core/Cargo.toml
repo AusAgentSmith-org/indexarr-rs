@@ -1,0 +1,19 @@
+[package]
+name = "indexarr-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+sqlx.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+clap.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+dotenvy.workspace = true
+tokio.workspace = true
