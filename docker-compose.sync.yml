@@ -1,0 +1,48 @@
+# Indexarr (Rust) — Sync-only mode (no DHT crawling)
+#
+# Usage:
+#   docker compose -f docker-compose.sync.yml up -d
+
+name: indexarr-sync
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: indexarr
+      POSTGRES_PASSWORD: indexarr
+      POSTGRES_DB: indexarr
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U indexarr"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  indexarr:
+    build:
+      context: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      INDEXARR_DB_URL: postgres://indexarr:indexarr@postgres:5432/indexarr
+      INDEXARR_DB_BACKEND: postgresql
+      INDEXARR_HOST: "0.0.0.0"
+      INDEXARR_PORT: "8080"
+      INDEXARR_SYNC_ENABLED: "true"
+      INDEXARR_SYNC_PEERS: "${INDEXARR_SYNC_PEERS:-[]}"
+      INDEXARR_TORZNAB_API_KEY: "${INDEXARR_TORZNAB_API_KEY:-}"
+      INDEXARR_CONTRIBUTOR_RECOVERY_KEY: "${INDEXARR_CONTRIBUTOR_RECOVERY_KEY:-}"
+    ports:
+      - "8080:8080"
+      - "6890:6890"
+      - "6895:6895/udp"
+    volumes:
+      - indexarr-data:/app/data
+    command: ["--workers", "http_server,sync"]
+
+volumes:
+  pgdata:
+  indexarr-data:
