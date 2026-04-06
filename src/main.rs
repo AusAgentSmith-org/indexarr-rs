@@ -223,13 +223,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None
     };
 
-    // Phase 4+: Announcer
-    // Phase 5+: Sync
+    // Announcer worker
+    if workers.iter().any(|w| w == "announcer") && state.settings.announcer_enabled {
+        let pool = state.pool.clone();
+        let config = indexarr_announcer::AnnouncerConfig::from_settings(&state.settings);
+        let cancel = cancel.clone();
+        handles.push(tokio::spawn(async move {
+            let mut announcer = indexarr_announcer::TorrentAnnouncer::new(pool, config);
+            announcer.run(cancel).await;
+        }));
+    }
+
+    // Sync worker
+    if workers.iter().any(|w| w == "sync") && state.settings.sync_enabled {
+        let sync_config = indexarr_sync::manager::SyncConfig::from_settings(&state.settings);
+        let identity = std::sync::Arc::new(tokio::sync::RwLock::new(
+            indexarr_identity::ContributorIdentity::new(&state.settings.data_dir),
+        ));
+        { let mut id = identity.write().await; let _ = id.load_or_generate(); }
+
+        let ban_list = std::sync::Arc::new(tokio::sync::RwLock::new(
+            indexarr_identity::BanList::new(&state.settings.swarm_maintainer_pubkey, &state.settings.data_dir),
+        ));
+        { ban_list.write().await.load(); }
+
+        let manager = indexarr_sync::manager::SyncManager::new(
+            state.pool.clone(),
+            sync_config,
+            identity,
+            ban_list,
+        );
+        let cancel = cancel.clone();
+        handles.push(tokio::spawn(async move {
+            manager.run(cancel).await;
+        }));
+    }
+
     for w in &workers {
         match w.as_str() {
-            "http_server" | "dht_crawler" | "resolver" => {} // already handled
-            "announcer" => tracing::warn!("announcer worker not yet implemented in Rust"),
-            "sync" => tracing::warn!("sync worker not yet implemented in Rust"),
+            "http_server" | "dht_crawler" | "resolver" | "announcer" | "sync" => {}
             other => tracing::warn!(worker = other, "unknown worker"),
         }
     }

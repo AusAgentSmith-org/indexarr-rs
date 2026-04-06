@@ -33,10 +33,8 @@ indexarr-search = { path = "crates/indexarr-search" }
 indexarr-web = { path = "crates/indexarr-web" }
 
 indexarr-dht = { path = "crates/indexarr-dht" }
-
-# Phase 4+
-# indexarr-announcer = { path = "crates/indexarr-announcer" }
-# indexarr-sync = { path = "crates/indexarr-sync" }
+indexarr-announcer = { path = "crates/indexarr-announcer" }
+indexarr-sync = { path = "crates/indexarr-sync" }
 
 clap.workspace = true
 tokio.workspace = true
@@ -44,6 +42,7 @@ tokio-util.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 dotenvy.workspace = true
+parking_lot.workspace = true
 
 [workspace.package]
 version = "0.1.0"
