@@ -78,6 +78,66 @@ async fn generate_api_key(
     }))
 }
 
+// --- Sync Preferences ---
+
+static ALL_CATEGORIES: &[&str] = &[
+    "movie", "tv_show", "music", "ebook", "comic",
+    "audiobook", "game", "software", "xxx", "unknown",
+];
+
+#[derive(Debug, serde::Deserialize)]
+struct SyncPrefsRequest {
+    import_categories: Vec<String>,
+    sync_comments: bool,
+}
+
+async fn get_sync_preferences(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    // Load from data dir or use defaults (all categories)
+    let prefs_path = state.settings.data_dir.join("sync_preferences.json");
+    let (import_categories, sync_comments) = if let Ok(data) = std::fs::read_to_string(&prefs_path) {
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) {
+            let cats: Vec<String> = v.get("import_categories")
+                .and_then(|v| v.as_array())
+                .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect::<Vec<_>>())
+                .unwrap_or_else(|| ALL_CATEGORIES.iter().map(|s| s.to_string()).collect());
+            let comments = v.get("sync_comments").and_then(|v| v.as_bool()).unwrap_or(true);
+            (cats, comments)
+        } else {
+            (ALL_CATEGORIES.iter().map(|s| s.to_string()).collect(), true)
+        }
+    } else {
+        (ALL_CATEGORIES.iter().map(|s| s.to_string()).collect(), true)
+    };
+
+    Json(serde_json::json!({
+        "all_categories": ALL_CATEGORIES,
+        "import_categories": import_categories,
+        "sync_comments": sync_comments,
+    }))
+}
+
+async fn set_sync_preferences(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<SyncPrefsRequest>,
+) -> Json<serde_json::Value> {
+    let prefs = serde_json::json!({
+        "import_categories": body.import_categories,
+        "sync_comments": body.sync_comments,
+    });
+
+    let prefs_path = state.settings.data_dir.join("sync_preferences.json");
+    let _ = std::fs::create_dir_all(&state.settings.data_dir);
+    let _ = std::fs::write(&prefs_path, serde_json::to_string_pretty(&prefs).unwrap_or_default());
+
+    Json(serde_json::json!({
+        "all_categories": ALL_CATEGORIES,
+        "import_categories": body.import_categories,
+        "sync_comments": body.sync_comments,
+    }))
+}
+
 fn db_err(e: sqlx::Error) -> (axum::http::StatusCode, String) {
     tracing::error!(error = %e, "database error");
     (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
@@ -88,4 +148,5 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/system/status", get(system_status))
         .route("/system/apikey", get(get_api_key))
         .route("/system/apikey/generate", post(generate_api_key))
+        .route("/system/sync/preferences", get(get_sync_preferences).post(set_sync_preferences))
 }

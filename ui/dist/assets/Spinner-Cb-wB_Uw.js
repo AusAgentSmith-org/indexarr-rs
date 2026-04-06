@@ -1,0 +1,1 @@
+import{d as n,o as s,c as t,n as a,_ as o}from"./index-CeroJvSp.js";const c=n({__name:"Spinner",props:{size:{}},setup(e){return(i,r)=>(s(),t("div",{class:"spinner",style:a({width:`${e.size||24}px`,height:`${e.size||24}px`})},null,4))}}),l=o(c,[["__scopeId","data-v-1925f30f"]]);export{l as S};

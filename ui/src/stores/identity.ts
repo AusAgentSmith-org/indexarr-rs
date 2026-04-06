@@ -17,7 +17,11 @@ export const useIdentityStore = defineStore('identity', () => {
       const status = await getIdentityStatus()
       contributorId.value = status.contributor_id
       publicKey.value = status.public_key
-      recoveryKey.value = status.recovery_key
+      // Preserve locally cached recovery key if server returns null
+      // (server only returns it during onboarding)
+      if (status.recovery_key) {
+        recoveryKey.value = status.recovery_key
+      }
       needsOnboarding.value = status.needs_onboarding
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to check identity'
