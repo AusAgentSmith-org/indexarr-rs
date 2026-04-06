@@ -64,13 +64,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         settings.db_url = url;
     }
 
-    // Set up tracing
+    // Set up log capture + tracing
+    let log_capture = indexarr_web::log_capture::LogCapture::new(5000);
+    let log_layer = indexarr_web::log_capture::LogCaptureLayer::new(log_capture.clone());
+
     let filter = if settings.debug { "debug" } else { "info" };
-    tracing_subscriber::fmt()
-        .with_env_filter(
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+    tracing_subscriber::registry()
+        .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(filter)),
         )
+        .with(tracing_subscriber::fmt::layer())
+        .with(log_layer)
         .init();
 
     // Initialize contributor identity
@@ -122,7 +129,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Build shared state
     let host = settings.host.clone();
     let port = settings.port;
-    let state = AppState::new(pool, settings, identity);
+    let state = AppState::new(pool, settings, identity, log_capture);
 
     // Cancellation token for graceful shutdown
     let cancel = CancellationToken::new();

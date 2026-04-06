@@ -7,22 +7,26 @@ use indexarr_identity::ContributorIdentity;
 use parking_lot::RwLock;
 use sqlx::PgPool;
 
+use crate::log_capture::LogCapture;
+
 /// Shared application state, accessible from all Axum handlers.
 pub struct AppState {
     pub pool: PgPool,
     pub settings: Settings,
     pub identity: RwLock<ContributorIdentity>,
     pub started_at: Instant,
+    pub log_capture: Arc<LogCapture>,
     ready: AtomicBool,
 }
 
 impl AppState {
-    pub fn new(pool: PgPool, settings: Settings, identity: ContributorIdentity) -> Arc<Self> {
+    pub fn new(pool: PgPool, settings: Settings, identity: ContributorIdentity, log_capture: Arc<LogCapture>) -> Arc<Self> {
         Arc::new(Self {
             pool,
             settings,
             identity: RwLock::new(identity),
             started_at: Instant::now(),
+            log_capture,
             ready: AtomicBool::new(false),
         })
     }
@@ -35,7 +39,6 @@ impl AppState {
         self.ready.store(true, Ordering::Relaxed);
     }
 
-    /// Check if the Torznab API key matches (empty key = no auth).
     pub fn check_api_key(&self, provided: &str) -> bool {
         let key = &self.settings.torznab_api_key;
         if key.is_empty() {

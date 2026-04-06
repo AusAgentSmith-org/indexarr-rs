@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::Router;
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::response::Json;
 use axum::routing::{get, post};
 use sqlx::Row;
@@ -142,33 +142,69 @@ async fn set_sync_preferences(
 
 // --- Logs ---
 
-async fn get_recent_logs() -> Json<serde_json::Value> {
-    // Log capture not yet implemented — return empty
+#[derive(Debug, serde::Deserialize)]
+struct LogParams {
+    limit: Option<usize>,
+    category: Option<String>,
+}
+
+async fn get_recent_logs(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<LogParams>,
+) -> Json<serde_json::Value> {
+    let limit = params.limit.unwrap_or(500).min(5000);
+    let entries = state.log_capture.get_recent(limit, params.category.as_deref());
     Json(serde_json::json!({
-        "entries": [],
-        "categories": ["system", "dht", "resolver", "announcer", "sync", "api"],
-        "debug_enabled": false,
+        "entries": entries,
+        "categories": state.log_capture.categories(),
+        "debug_enabled": state.log_capture.debug_enabled(),
     }))
 }
 
-async fn get_log_categories() -> Json<serde_json::Value> {
-    Json(serde_json::json!(["system", "dht", "resolver", "announcer", "sync", "api"]))
+async fn get_log_categories(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    Json(serde_json::json!(state.log_capture.categories()))
 }
 
-async fn toggle_debug() -> Json<serde_json::Value> {
-    Json(serde_json::json!({ "debug_enabled": false }))
+async fn toggle_debug(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    let new_val = !state.log_capture.debug_enabled();
+    state.log_capture.set_debug_enabled(new_val);
+    Json(serde_json::json!({ "debug_enabled": new_val }))
 }
 
-// WebSocket log streaming — stub that accepts the connection then closes
-async fn logs_ws(ws: axum::extract::WebSocketUpgrade) -> impl axum::response::IntoResponse {
-    ws.on_upgrade(|mut socket| async move {
+async fn logs_ws(
+    State(state): State<Arc<AppState>>,
+    ws: axum::extract::WebSocketUpgrade,
+) -> impl axum::response::IntoResponse {
+    ws.on_upgrade(move |mut socket| async move {
         use axum::extract::ws::Message;
-        // Send a keepalive, then hold connection open
-        let _ = socket.send(Message::Text(
-            serde_json::json!({"type": "connected", "message": "log streaming not yet implemented"}).to_string().into()
-        )).await;
-        // Hold connection until client disconnects
-        while let Some(Ok(_)) = socket.recv().await {}
+        let mut rx = state.log_capture.subscribe();
+
+        loop {
+            tokio::select! {
+                result = rx.recv() => {
+                    match result {
+                        Ok(entry) => {
+                            let json = serde_json::to_string(&entry).unwrap_or_default();
+                            if socket.send(Message::Text(json.into())).await.is_err() {
+                                break;
+                            }
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                        Err(_) => break,
+                    }
+                }
+                msg = socket.recv() => {
+                    match msg {
+                        Some(Ok(_)) => continue,
+                        _ => break,
+                    }
+                }
+            }
+        }
     })
 }
 
