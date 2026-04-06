@@ -17,16 +17,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libssl-dev cmake
-
-      - name: Install Rust toolchain
-        run: |
-          curl --proto =https --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --component clippy,rustfmt
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
       - name: Configure git for private deps
         run: git config --global url."https://x-access-token:${{ secrets.GIT_AUTH_TOKEN }}@github.com/".insteadOf "https://github.com/"
 
