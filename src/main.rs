@@ -164,15 +164,70 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }));
     }
 
-    // Phase 3+: DHT crawler, resolver
+    // DHT crawler + resolver
+    let needs_dht = workers.iter().any(|w| w == "dht_crawler" || w == "resolver");
+    let _dht_engine = if needs_dht {
+        let dht_shared = indexarr_dht::DhtSharedState::new();
+        let dht_instances = state.settings.dht_instances;
+        let dht_base_port = state.settings.dht_base_port;
+
+        match indexarr_dht::engine::DhtEngine::new(
+            dht_instances,
+            dht_base_port,
+            dht_shared.clone(),
+            cancel.clone(),
+        ).await {
+            Ok(engine) => {
+                let engine = std::sync::Arc::new(engine);
+
+                // Start hash ingest worker
+                let ingest_pool = state.pool.clone();
+                let ingest_shared = dht_shared.clone();
+                let ingest_cancel = cancel.clone();
+                handles.push(tokio::spawn(async move {
+                    indexarr_dht::ingest::run_hash_ingest(ingest_pool, ingest_shared, ingest_cancel).await;
+                }));
+
+                // Start crawler
+                if workers.iter().any(|w| w == "dht_crawler") {
+                    let crawler_engine = engine.clone();
+                    handles.push(tokio::spawn(async move {
+                        crawler_engine.run_crawler().await;
+                    }));
+                }
+
+                // Start resolver
+                if workers.iter().any(|w| w == "resolver") {
+                    let resolver = indexarr_dht::resolver::MetadataResolver::new(
+                        state.pool.clone(),
+                        dht_shared.clone(),
+                        engine.clone(),
+                        state.settings.resolve_workers as usize,
+                        state.settings.resolve_timeout as u64,
+                        state.settings.save_files_threshold,
+                        cancel.clone(),
+                    );
+                    handles.push(tokio::spawn(async move {
+                        resolver.run().await;
+                    }));
+                }
+
+                Some(engine)
+            }
+            Err(e) => {
+                tracing::error!(error = %e, "failed to start DHT engine");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     // Phase 4+: Announcer
     // Phase 5+: Sync
-
     for w in &workers {
         match w.as_str() {
-            "http_server" => {} // already handled
-            "dht_crawler" => tracing::warn!("dht_crawler worker not yet implemented in Rust"),
-            "resolver" => tracing::warn!("resolver worker not yet implemented in Rust"),
+            "http_server" | "dht_crawler" | "resolver" => {} // already handled
             "announcer" => tracing::warn!("announcer worker not yet implemented in Rust"),
             "sync" => tracing::warn!("sync worker not yet implemented in Rust"),
             other => tracing::warn!(worker = other, "unknown worker"),
