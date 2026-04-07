@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::time::Instant;
 
-use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Row};
 use tokio_util::sync::CancellationToken;
 
@@ -10,13 +9,13 @@ use indexarr_core::config::Settings;
 /// Tracked torrent in the announcer pool.
 struct TrackedHandle {
     info_hash: String,
-    name: String,
+    _name: String,
     trackers: Vec<String>,
     added_at: Instant,
     best_seeds: i32,
     best_peers: i32,
     settled: bool,
-    announce_miss: i32,
+    _announce_miss: i32,
 }
 
 /// Rolling pool announcer — validates seed/peer counts for resolved torrents.
@@ -82,10 +81,10 @@ impl TorrentAnnouncer {
             let harvested = self.poll_and_harvest().await;
 
             // 3. Persist results to DB
-            if !harvested.is_empty() {
-                if let Err(e) = self.persist_results(&harvested).await {
-                    tracing::error!(error = %e, "failed to persist announcer results");
-                }
+            if !harvested.is_empty()
+                && let Err(e) = self.persist_results(&harvested).await
+            {
+                tracing::error!(error = %e, "failed to persist announcer results");
             }
 
             // 4. Remove harvested from pool
@@ -94,7 +93,7 @@ impl TorrentAnnouncer {
             }
 
             // Stats
-            if self.announced_count % 100 == 0 && self.announced_count > 0 {
+            if self.announced_count.is_multiple_of(100) && self.announced_count > 0 {
                 tracing::info!(
                     announced = self.announced_count,
                     pool = self.tracked.len(),
@@ -141,13 +140,13 @@ impl TorrentAnnouncer {
                 hash.clone(),
                 TrackedHandle {
                     info_hash: hash,
-                    name,
+                    _name: name,
                     trackers,
                     added_at: Instant::now(),
                     best_seeds: 0,
                     best_peers: 0,
                     settled: false,
-                    announce_miss: 0,
+                    _announce_miss: 0,
                 },
             );
         }
@@ -227,14 +226,14 @@ impl TorrentAnnouncer {
                 .fetch_optional(&self.pool)
                 .await?;
 
-                if let Some(miss_count) = miss {
-                    if miss_count >= 3 {
-                        sqlx::query("UPDATE torrents SET no_peers = TRUE WHERE info_hash = $1")
-                            .bind(hash)
-                            .execute(&self.pool)
-                            .await?;
-                        tracing::debug!(hash = %hash, misses = miss_count, "marked no_peers (3-strike)");
-                    }
+                if let Some(miss_count) = miss
+                    && miss_count >= 3
+                {
+                    sqlx::query("UPDATE torrents SET no_peers = TRUE WHERE info_hash = $1")
+                        .bind(hash)
+                        .execute(&self.pool)
+                        .await?;
+                    tracing::debug!(hash = %hash, misses = miss_count, "marked no_peers (3-strike)");
                 }
             }
 
@@ -293,10 +292,10 @@ async fn scrape_trackers(info_hash: &str, trackers: &[String]) -> (i32, i32) {
 
         match client.get(&url).send().await {
             Ok(resp) if resp.status().is_success() => {
-                if let Ok(body) = resp.bytes().await {
-                    if let Some((seeds, peers)) = parse_scrape_response(&body, &hash_bytes) {
-                        return (seeds, peers);
-                    }
+                if let Ok(body) = resp.bytes().await
+                    && let Some((seeds, peers)) = parse_scrape_response(&body, &hash_bytes)
+                {
+                    return (seeds, peers);
                 }
             }
             _ => continue,

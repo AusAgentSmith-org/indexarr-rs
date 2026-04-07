@@ -7,6 +7,7 @@ use serde::Serialize;
 
 use crate::state::AppState;
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize)]
 struct CategoryItem {
     id: i32,

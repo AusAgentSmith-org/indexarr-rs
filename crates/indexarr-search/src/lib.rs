@@ -197,7 +197,7 @@ async fn execute_search_query(
 
     macro_rules! add_text_filter {
         ($col:expr, $val:expr) => {
-            if let Some(ref v) = $val {
+            if let Some(ref _v) = $val {
                 param_idx += 1;
                 where_parts.push(format!("{} = ${}", $col, param_idx));
             }
@@ -499,24 +499,20 @@ async fn compute_facets(
     pool: &PgPool,
     _filters: &SearchFilters,
 ) -> Result<SearchFacets, sqlx::Error> {
-    let mut facets = SearchFacets::default();
-
-    // For Phase 1 MVP, compute facets using simple aggregate queries
-    // against the full resolved+announced+seeded set.
-    // A more complete implementation would apply the same filters as the search.
-
-    facets.content_type = facet_query(pool, "c.content_type", "torrent_content c").await?;
-    facets.resolution = facet_query(pool, "c.resolution", "torrent_content c").await?;
-    facets.codec = facet_query(pool, "c.codec", "torrent_content c").await?;
-    facets.video_source = facet_query(pool, "c.video_source", "torrent_content c").await?;
-    facets.hdr = facet_query(pool, "c.hdr", "torrent_content c").await?;
-    facets.audio_codec = facet_query(pool, "c.audio_codec", "torrent_content c").await?;
-    facets.language = facet_query(pool, "c.language", "torrent_content c").await?;
-    facets.modifier = facet_query(pool, "c.modifier", "torrent_content c").await?;
-    facets.platform = facet_query(pool, "c.platform", "torrent_content c").await?;
-    facets.music_format = facet_query(pool, "c.music_format", "torrent_content c").await?;
-    facets.year = facet_query_limit(pool, "c.year", "torrent_content c", 20).await?;
-    facets.source = facet_query(pool, "t.source", "torrents t").await?;
+    let facets = SearchFacets {
+        content_type: facet_query(pool, "c.content_type", "torrent_content c").await?,
+        resolution: facet_query(pool, "c.resolution", "torrent_content c").await?,
+        codec: facet_query(pool, "c.codec", "torrent_content c").await?,
+        video_source: facet_query(pool, "c.video_source", "torrent_content c").await?,
+        hdr: facet_query(pool, "c.hdr", "torrent_content c").await?,
+        audio_codec: facet_query(pool, "c.audio_codec", "torrent_content c").await?,
+        language: facet_query(pool, "c.language", "torrent_content c").await?,
+        modifier: facet_query(pool, "c.modifier", "torrent_content c").await?,
+        platform: facet_query(pool, "c.platform", "torrent_content c").await?,
+        music_format: facet_query(pool, "c.music_format", "torrent_content c").await?,
+        year: facet_query_limit(pool, "c.year", "torrent_content c", 20).await?,
+        source: facet_query(pool, "t.source", "torrents t").await?,
+    };
 
     Ok(facets)
 }

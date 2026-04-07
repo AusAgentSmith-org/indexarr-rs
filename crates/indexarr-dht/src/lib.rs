@@ -7,7 +7,6 @@ use std::sync::Arc;
 
 use dashmap::DashMap;
 use parking_lot::Mutex;
-use tokio_util::sync::CancellationToken;
 
 /// Discovered info_hash with optional peer info and source.
 #[derive(Debug, Clone)]

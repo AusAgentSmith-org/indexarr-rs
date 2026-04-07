@@ -142,10 +142,8 @@ impl PeerTable {
 
         // Ensure at least one bootstrap peer if available
         let has_bootstrap = healthy.iter().any(|p| p.source == "bootstrap");
-        if !has_bootstrap {
-            if let Some(bp) = self.peers.values().find(|p| p.source == "bootstrap") {
-                healthy.insert(0, bp);
-            }
+        if !has_bootstrap && let Some(bp) = self.peers.values().find(|p| p.source == "bootstrap") {
+            healthy.insert(0, bp);
         }
 
         healthy.into_iter().take(count).collect()
@@ -169,10 +167,8 @@ impl PeerTable {
 
         self.apply_reputation_delta(peer_id, -penalty);
 
-        if should_remove {
-            if let Some(peer) = self.peers.remove(peer_id) {
-                self.url_index.remove(&peer.url);
-            }
+        if should_remove && let Some(peer) = self.peers.remove(peer_id) {
+            self.url_index.remove(&peer.url);
         }
     }
 

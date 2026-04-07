@@ -334,10 +334,10 @@ fn env_csv_or(key: &str, defaults: &[&str]) -> Vec<String> {
 fn env_list(key: &str, defaults: &[&str]) -> Vec<String> {
     // Try JSON array first, then CSV
     if let Ok(val) = std::env::var(key) {
-        if val.starts_with('[') {
-            if let Ok(list) = serde_json::from_str::<Vec<String>>(&val) {
-                return list;
-            }
+        if val.starts_with('[')
+            && let Ok(list) = serde_json::from_str::<Vec<String>>(&val)
+        {
+            return list;
         }
         return val.split(',').map(|s| s.trim().to_string()).collect();
     }

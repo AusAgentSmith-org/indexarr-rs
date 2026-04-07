@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -201,10 +201,10 @@ fn clean_sync_dir(sync_dir: &Path) {
     if let Ok(entries) = std::fs::read_dir(sync_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-                if matches!(ext, "ndjson" | "gz" | "torrent") {
-                    let _ = std::fs::remove_file(&path);
-                }
+            if let Some(ext) = path.extension().and_then(|e| e.to_str())
+                && matches!(ext, "ndjson" | "gz" | "torrent")
+            {
+                let _ = std::fs::remove_file(&path);
             }
             if path.file_name().map(|n| n == "sequence").unwrap_or(false) {
                 let _ = std::fs::remove_file(&path);

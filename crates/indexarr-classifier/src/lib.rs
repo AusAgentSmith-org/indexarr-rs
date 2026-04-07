@@ -116,10 +116,10 @@ fn detect_anime(name: &str, group: Option<&str>) -> bool {
         "LostYears",
         "Commie",
     ];
-    if let Some(g) = group {
-        if ANIME_GROUPS.iter().any(|ag| ag.eq_ignore_ascii_case(g)) {
-            return true;
-        }
+    if let Some(g) = group
+        && ANIME_GROUPS.iter().any(|ag| ag.eq_ignore_ascii_case(g))
+    {
+        return true;
     }
     // Bracketed fansub group pattern: [GroupName]
     static RE_FANSUB: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\[([^\]]+)\]").unwrap());
@@ -167,10 +167,10 @@ fn dominant_file_type(files: &[FileInfo]) -> Option<String> {
 
     let mut type_sizes: std::collections::HashMap<&str, i64> = std::collections::HashMap::new();
     for f in files {
-        if let Some(ref ext) = f.extension {
-            if let Some(cat) = indexarr_parser::maps::extension_category(ext) {
-                *type_sizes.entry(cat).or_insert(0) += f.size;
-            }
+        if let Some(ref ext) = f.extension
+            && let Some(cat) = indexarr_parser::maps::extension_category(ext)
+        {
+            *type_sizes.entry(cat).or_insert(0) += f.size;
         }
     }
 
@@ -229,10 +229,11 @@ fn classify_content(
     static RE_MUSIC_DESC: Lazy<Regex> = Lazy::new(|| {
         Regex::new(r"(?i)\b(?:remastered|deluxe[. ]edition|EP|Single|Album|Discography|FLAC|MP3|320kbps|V0)\b").unwrap()
     });
-    if RE_MUSIC.is_match(name) && RE_MUSIC_DESC.is_match(name) {
-        if partial.music_format.is_some() || dominant_type.as_deref() == Some("audio") {
-            return ("music".to_string(), 0.8);
-        }
+    if RE_MUSIC.is_match(name)
+        && RE_MUSIC_DESC.is_match(name)
+        && (partial.music_format.is_some() || dominant_type.as_deref() == Some("audio"))
+    {
+        return ("music".to_string(), 0.8);
     }
 
     // Audiobook
@@ -311,10 +312,10 @@ pub fn check_ban(name: &str, info_hash: &str, bans: &[BanRule]) -> Option<String
                 }
             }
             "regex" => {
-                if let Ok(re) = Regex::new(&ban.pattern) {
-                    if re.is_match(name) {
-                        return Some(ban.reason.clone().unwrap_or_default());
-                    }
+                if let Ok(re) = Regex::new(&ban.pattern)
+                    && re.is_match(name)
+                {
+                    return Some(ban.reason.clone().unwrap_or_default());
                 }
             }
             _ => {}

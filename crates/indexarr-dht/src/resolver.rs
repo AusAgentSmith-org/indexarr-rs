@@ -2,7 +2,6 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Instant;
 
-use chrono::Utc;
 use sqlx::{PgPool, Row};
 use tokio_util::sync::CancellationToken;
 
@@ -66,8 +65,8 @@ impl MetadataResolver {
         }
 
         let mut last_stats = Instant::now();
-        let mut resolved_count = 0u64;
-        let mut failed_count = 0u64;
+        let _resolved_count = 0u64;
+        let _failed_count = 0u64;
         let semaphore = Arc::new(tokio::sync::Semaphore::new(self.workers));
 
         loop {
@@ -84,7 +83,7 @@ impl MetadataResolver {
             }
 
             // Discover peers for the batch via DHT
-            let hash_strings: Vec<String> = batch.iter().map(|h| h.clone()).collect();
+            let hash_strings: Vec<String> = batch.to_vec();
             let discovered = self.engine.discover_peers(&hash_strings).await;
 
             // Also check cached peers
@@ -292,7 +291,7 @@ struct FileEntry {
 async fn fetch_metadata(
     info_hash: &str,
     peers: &[SocketAddr],
-    timeout_secs: u64,
+    _timeout_secs: u64,
 ) -> Result<ResolvedMeta, String> {
     // Phase 3 MVP: We don't yet implement the full BEP 9 peer connection.
     // This requires a TCP connection per peer with:
@@ -414,7 +413,7 @@ async fn process_resolved(
     .bind(parsed.is_scene)
     .bind(parsed.is_proper)
     .bind(parsed.is_repack)
-    .bind(&classification.platform.or(parsed.platform.clone()))
+    .bind(classification.platform.or(parsed.platform.clone()))
     .bind(classification.has_subtitles || parsed.has_subtitles)
     .bind(classification.is_anime)
     .bind(&classification.music_format)

@@ -138,7 +138,7 @@ impl DhtEngine {
             tokio::time::sleep(std::time::Duration::from_millis(sleep_ms)).await;
 
             // Periodic stats
-            if round % 100 == 0 {
+            if round.is_multiple_of(100) {
                 let stats = self.stats();
                 tracing::info!(
                     round,

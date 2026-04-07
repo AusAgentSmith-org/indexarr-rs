@@ -254,14 +254,13 @@ fn extract_episodes(result: &mut ParsedTorrent, text: &str) -> String {
 fn extract_year(result: &mut ParsedTorrent, text: &str) -> String {
     static RE_YEAR: Lazy<Regex> =
         Lazy::new(|| Regex::new(r"(?:^|[\s.(])((?:19|20)\d{2})(?:[\s.)\-]|$)").unwrap());
-    if let Some(caps) = RE_YEAR.captures(text) {
-        if let Ok(y) = caps[1].parse::<i32>() {
-            if (1920..=2030).contains(&y) {
-                result.year = Some(y);
-                let m = caps.get(1).unwrap();
-                return text[..m.start()].to_string() + &text[m.end()..];
-            }
-        }
+    if let Some(caps) = RE_YEAR.captures(text)
+        && let Ok(y) = caps[1].parse::<i32>()
+        && (1920..=2030).contains(&y)
+    {
+        result.year = Some(y);
+        let m = caps.get(1).unwrap();
+        return text[..m.start()].to_string() + &text[m.end()..];
     }
     text.to_string()
 }
@@ -277,8 +276,7 @@ fn extract_title(result: &mut ParsedTorrent, original: &str) {
         .map(|m| m.start())
         .unwrap_or(text.len());
     let title = text[..end_pos]
-        .replace('.', " ")
-        .replace('-', " ")
+        .replace(['.', '-'], " ")
         .trim()
         .trim_end_matches(" -")
         .trim_end_matches('-')

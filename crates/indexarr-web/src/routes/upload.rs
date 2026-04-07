@@ -5,7 +5,6 @@ use axum::extract::State;
 use axum::response::Json;
 use axum::routing::post;
 use serde::{Deserialize, Serialize};
-use sqlx::Row;
 
 use crate::state::AppState;
 

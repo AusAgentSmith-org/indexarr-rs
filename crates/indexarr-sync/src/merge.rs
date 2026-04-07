@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use chrono::{DateTime, Utc};
-use sqlx::{PgPool, Row};
+use sqlx::PgPool;
 
 use indexarr_identity::{BanList, verify_delta_signature};
 
@@ -19,7 +19,9 @@ pub struct MergeStats {
 
 const MAX_FILES_PER_TORRENT: usize = 5000;
 const MAX_TAGS_PER_TORRENT: usize = 100;
+#[allow(dead_code)]
 const MAX_COMMENTS_PER_TORRENT: usize = 500;
+#[allow(dead_code)]
 const MAX_VOTES_PER_TORRENT: usize = 5000;
 
 /// Merge a delta file into the local database.
@@ -29,7 +31,7 @@ pub async fn merge_delta(
     data_dir: &Path,
     ban_list: &BanList,
     import_categories: &[String],
-    bulk_insert: bool,
+    _bulk_insert: bool,
 ) -> Result<MergeStats, Box<dyn std::error::Error + Send + Sync>> {
     let records = crate::delta::read_delta(delta_path)?;
     let mut stats = MergeStats::default();
@@ -134,10 +136,11 @@ async fn merge_record(
     // Signature verification
     let name = record.get("name").and_then(|v| v.as_str());
     let size = record.get("size").and_then(|v| v.as_i64());
-    if !pubkey.is_empty() && !signature.is_empty() {
-        if !verify_delta_signature(pubkey, signature, info_hash, name, size, record_epoch) {
-            return Ok(MergeAction::SignatureFailed);
-        }
+    if !pubkey.is_empty()
+        && !signature.is_empty()
+        && !verify_delta_signature(pubkey, signature, info_hash, name, size, record_epoch)
+    {
+        return Ok(MergeAction::SignatureFailed);
     }
 
     // Check if torrent exists
@@ -207,30 +210,55 @@ async fn insert_torrent(
     .await?;
 
     // Insert content
-    if let Some(content) = record.get("content") {
-        if !content.is_null() {
-            let _ = sqlx::query(
-                "INSERT INTO torrent_content (info_hash, content_type, title, year, season, episode, \
-                 resolution, codec, video_source, platform, is_anime, music_format, quality_score) \
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) \
-                 ON CONFLICT (info_hash) DO NOTHING"
-            )
-            .bind(info_hash)
-            .bind(content.get("content_type").and_then(|v| v.as_str()))
-            .bind(content.get("title").and_then(|v| v.as_str()))
-            .bind(content.get("year").and_then(|v| v.as_i64()).map(|v| v as i32))
-            .bind(content.get("season").and_then(|v| v.as_i64()).map(|v| v as i32))
-            .bind(content.get("episode").and_then(|v| v.as_i64()).map(|v| v as i32))
-            .bind(content.get("resolution").and_then(|v| v.as_str()))
-            .bind(content.get("codec").and_then(|v| v.as_str()))
-            .bind(content.get("video_source").and_then(|v| v.as_str()))
-            .bind(content.get("platform").and_then(|v| v.as_str()))
-            .bind(content.get("is_anime").and_then(|v| v.as_bool()).unwrap_or(false))
-            .bind(content.get("music_format").and_then(|v| v.as_str()))
-            .bind(content.get("quality_score").and_then(|v| v.as_i64()).map(|v| v as i32))
-            .execute(pool)
-            .await;
-        }
+    if let Some(content) = record.get("content")
+        && !content.is_null()
+    {
+        let _ = sqlx::query(
+            "INSERT INTO torrent_content (info_hash, content_type, title, year, season, episode, \
+             resolution, codec, video_source, platform, is_anime, music_format, quality_score) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) \
+             ON CONFLICT (info_hash) DO NOTHING",
+        )
+        .bind(info_hash)
+        .bind(content.get("content_type").and_then(|v| v.as_str()))
+        .bind(content.get("title").and_then(|v| v.as_str()))
+        .bind(
+            content
+                .get("year")
+                .and_then(|v| v.as_i64())
+                .map(|v| v as i32),
+        )
+        .bind(
+            content
+                .get("season")
+                .and_then(|v| v.as_i64())
+                .map(|v| v as i32),
+        )
+        .bind(
+            content
+                .get("episode")
+                .and_then(|v| v.as_i64())
+                .map(|v| v as i32),
+        )
+        .bind(content.get("resolution").and_then(|v| v.as_str()))
+        .bind(content.get("codec").and_then(|v| v.as_str()))
+        .bind(content.get("video_source").and_then(|v| v.as_str()))
+        .bind(content.get("platform").and_then(|v| v.as_str()))
+        .bind(
+            content
+                .get("is_anime")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false),
+        )
+        .bind(content.get("music_format").and_then(|v| v.as_str()))
+        .bind(
+            content
+                .get("quality_score")
+                .and_then(|v| v.as_i64())
+                .map(|v| v as i32),
+        )
+        .execute(pool)
+        .await;
     }
 
     // Insert files (limited)

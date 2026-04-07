@@ -168,22 +168,19 @@ impl SyncManager {
                     .timeout(std::time::Duration::from_secs(10))
                     .send()
                     .await
+                    && resp.status().is_success()
+                    && let Ok(body) = resp.json::<serde_json::Value>().await
+                    && let Some(peers) = body.get("peers").and_then(|v| v.as_array())
                 {
-                    if resp.status().is_success() {
-                        if let Ok(body) = resp.json::<serde_json::Value>().await {
-                            if let Some(peers) = body.get("peers").and_then(|v| v.as_array()) {
-                                let mut pt = self.peer_table.write().await;
-                                for peer in peers {
-                                    let pu = peer.get("url").and_then(|v| v.as_str()).unwrap_or("");
-                                    let pi = peer
-                                        .get("contributor_id")
-                                        .and_then(|v| v.as_str())
-                                        .unwrap_or("");
-                                    if !pu.is_empty() && !pi.is_empty() {
-                                        pt.add_peer(pi, pu, "pex");
-                                    }
-                                }
-                            }
+                    let mut pt = self.peer_table.write().await;
+                    for peer in peers {
+                        let pu = peer.get("url").and_then(|v| v.as_str()).unwrap_or("");
+                        let pi = peer
+                            .get("contributor_id")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+                        if !pu.is_empty() && !pi.is_empty() {
+                            pt.add_peer(pi, pu, "pex");
                         }
                     }
                 }

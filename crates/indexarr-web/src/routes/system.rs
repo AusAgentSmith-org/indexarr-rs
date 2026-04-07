@@ -1,12 +1,10 @@
 use std::sync::Arc;
 
+use crate::state::AppState;
 use axum::Router;
 use axum::extract::{Query, State};
 use axum::response::Json;
 use axum::routing::{get, post};
-use sqlx::Row;
-
-use crate::state::AppState;
 
 async fn system_status(
     State(state): State<Arc<AppState>>,

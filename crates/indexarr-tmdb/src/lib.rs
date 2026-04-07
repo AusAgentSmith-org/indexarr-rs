@@ -164,15 +164,15 @@ impl TmdbClient {
         let data: serde_json::Value = self.get(&url).await?;
 
         // Check movie_results first, then tv_results
-        if let Some(results) = data.get("movie_results").and_then(|v| v.as_array()) {
-            if let Some(first) = results.first() {
-                return Ok(Some(parse_match(first, "movie")));
-            }
+        if let Some(results) = data.get("movie_results").and_then(|v| v.as_array())
+            && let Some(first) = results.first()
+        {
+            return Ok(Some(parse_match(first, "movie")));
         }
-        if let Some(results) = data.get("tv_results").and_then(|v| v.as_array()) {
-            if let Some(first) = results.first() {
-                return Ok(Some(parse_match(first, "tv")));
-            }
+        if let Some(results) = data.get("tv_results").and_then(|v| v.as_array())
+            && let Some(first) = results.first()
+        {
+            return Ok(Some(parse_match(first, "tv")));
         }
         Ok(None)
     }
@@ -185,10 +185,10 @@ impl TmdbClient {
         // Circuit breaker check
         {
             let open_until = self.circuit_open_until.lock().await;
-            if let Some(until) = *open_until {
-                if Instant::now() < until {
-                    return Err(TmdbError::CircuitOpen);
-                }
+            if let Some(until) = *open_until
+                && Instant::now() < until
+            {
+                return Err(TmdbError::CircuitOpen);
             }
         }
 
@@ -224,15 +224,15 @@ impl TmdbClient {
 
     fn record_failure(&self) {
         let count = self.failure_count.fetch_add(1, Ordering::Relaxed) + 1;
-        if count >= self.failure_threshold {
-            if let Ok(mut open_until) = self.circuit_open_until.try_lock() {
-                *open_until = Some(Instant::now() + self.reset_timeout);
-                tracing::warn!(
-                    failures = count,
-                    timeout_secs = self.reset_timeout.as_secs(),
-                    "TMDB circuit breaker opened"
-                );
-            }
+        if count >= self.failure_threshold
+            && let Ok(mut open_until) = self.circuit_open_until.try_lock()
+        {
+            *open_until = Some(Instant::now() + self.reset_timeout);
+            tracing::warn!(
+                failures = count,
+                timeout_secs = self.reset_timeout.as_secs(),
+                "TMDB circuit breaker opened"
+            );
         }
     }
 }

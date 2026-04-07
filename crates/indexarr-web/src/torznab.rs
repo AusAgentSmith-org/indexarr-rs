@@ -19,6 +19,7 @@ pub struct TorznabParams {
     #[serde(default)]
     q: String,
     #[serde(default)]
+    #[allow(dead_code)]
     cat: String,
     #[serde(default)]
     season: String,
@@ -172,19 +173,19 @@ async fn do_search(state: &AppState, params: &TorznabParams) -> Result<String, s
     }
 
     // Season/Episode
-    if !params.season.is_empty() {
-        if let Ok(s) = params.season.parse::<i32>() {
-            param_idx += 1;
-            conditions.push(format!("c.season = ${}", param_idx));
-            bind_ints.push(s);
-        }
+    if !params.season.is_empty()
+        && let Ok(s) = params.season.parse::<i32>()
+    {
+        param_idx += 1;
+        conditions.push(format!("c.season = ${}", param_idx));
+        bind_ints.push(s);
     }
-    if !params.ep.is_empty() {
-        if let Ok(e) = params.ep.parse::<i32>() {
-            param_idx += 1;
-            conditions.push(format!("c.episode = ${}", param_idx));
-            bind_ints.push(e);
-        }
+    if !params.ep.is_empty()
+        && let Ok(e) = params.ep.parse::<i32>()
+    {
+        param_idx += 1;
+        conditions.push(format!("c.episode = ${}", param_idx));
+        bind_ints.push(e);
     }
 
     // IMDB
@@ -200,12 +201,12 @@ async fn do_search(state: &AppState, params: &TorznabParams) -> Result<String, s
     }
 
     // TMDB
-    if !params.tmdbid.is_empty() {
-        if let Ok(id) = params.tmdbid.parse::<i32>() {
-            param_idx += 1;
-            conditions.push(format!("c.tmdb_id = ${}", param_idx));
-            bind_ints.push(id);
-        }
+    if !params.tmdbid.is_empty()
+        && let Ok(id) = params.tmdbid.parse::<i32>()
+    {
+        param_idx += 1;
+        conditions.push(format!("c.tmdb_id = ${}", param_idx));
+        bind_ints.push(id);
     }
 
     // Function-specific type filters

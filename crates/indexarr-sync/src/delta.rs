@@ -176,24 +176,23 @@ impl DeltaExporter {
         if let Ok(entries) = std::fs::read_dir(&sync_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.extension().and_then(|e| e.to_str()) == Some("gz") {
-                    if let Some(name) = path.file_stem().and_then(|n| n.to_str()) {
-                        if name.starts_with("delta_") {
-                            // Compute content hash
-                            if let Ok(data) = std::fs::read(&path) {
-                                let hash = hex::encode(Sha256::digest(&data));
-                                deltas.push(DeltaInfo {
-                                    sequence: name
-                                        .strip_prefix("delta_")
-                                        .and_then(|s| s.strip_suffix(".ndjson"))
-                                        .and_then(|s| s.parse().ok())
-                                        .unwrap_or(0),
-                                    count: 0,
-                                    content_hash: hash,
-                                    created_at: Utc::now().to_rfc3339(),
-                                });
-                            }
-                        }
+                if path.extension().and_then(|e| e.to_str()) == Some("gz")
+                    && let Some(name) = path.file_stem().and_then(|n| n.to_str())
+                    && name.starts_with("delta_")
+                {
+                    // Compute content hash
+                    if let Ok(data) = std::fs::read(&path) {
+                        let hash = hex::encode(Sha256::digest(&data));
+                        deltas.push(DeltaInfo {
+                            sequence: name
+                                .strip_prefix("delta_")
+                                .and_then(|s| s.strip_suffix(".ndjson"))
+                                .and_then(|s| s.parse().ok())
+                                .unwrap_or(0),
+                            count: 0,
+                            content_hash: hash,
+                            created_at: Utc::now().to_rfc3339(),
+                        });
                     }
                 }
             }

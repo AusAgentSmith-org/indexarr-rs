@@ -1,13 +1,11 @@
 use std::sync::Arc;
 
 use axum::Router;
-use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Json, Response};
-use axum::routing::{get, post};
+use axum::routing::get;
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
 use sqlx::Row;
 
 use crate::state::AppState;
@@ -40,7 +38,7 @@ async fn get_sync_dashboard(State(state): State<Arc<AppState>>) -> Json<serde_js
         })
     }).collect();
 
-    let healthy_count = peers
+    let _healthy_count = peers
         .iter()
         .filter(|p| p.get("healthy").and_then(|v| v.as_bool()).unwrap_or(false))
         .count();
@@ -170,18 +168,18 @@ async fn get_sync_delta(
     if let Ok(entries) = std::fs::read_dir(&sync_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) == Some("gz") {
-                if let Ok(data) = std::fs::read(&path) {
-                    use sha2::{Digest, Sha256};
-                    let hash = hex::encode(Sha256::digest(&data));
-                    if hash == content_hash {
-                        return (
-                            StatusCode::OK,
-                            [(header::CONTENT_TYPE, "application/gzip")],
-                            data,
-                        )
-                            .into_response();
-                    }
+            if path.extension().and_then(|e| e.to_str()) == Some("gz")
+                && let Ok(data) = std::fs::read(&path)
+            {
+                use sha2::{Digest, Sha256};
+                let hash = hex::encode(Sha256::digest(&data));
+                if hash == content_hash {
+                    return (
+                        StatusCode::OK,
+                        [(header::CONTENT_TYPE, "application/gzip")],
+                        data,
+                    )
+                        .into_response();
                 }
             }
         }

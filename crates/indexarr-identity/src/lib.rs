@@ -36,10 +36,7 @@ fn encode_recovery_key(private_bytes: &[u8; 32]) -> String {
 
 /// Decode a recovery key back to 32 bytes.
 fn decode_recovery_key(recovery_key: &str) -> Result<[u8; 32]> {
-    let cleaned: String = recovery_key
-        .replace('-', "")
-        .replace(' ', "")
-        .to_uppercase();
+    let cleaned: String = recovery_key.replace(['-', ' '], "").to_uppercase();
     let bytes = base32::decode(base32::Alphabet::Rfc4648 { padding: false }, &cleaned)
         .ok_or_else(|| IdentityError::InvalidRecoveryKey("invalid base32".into()))?;
     let arr: [u8; 32] = bytes
@@ -286,11 +283,11 @@ impl BanList {
     }
 
     pub fn load(&mut self) {
-        if let Ok(data) = std::fs::read_to_string(&self.ban_file) {
-            if let Ok(ban_file) = serde_json::from_str::<BanFile>(&data) {
-                for ban in ban_file.bans {
-                    self.banned.insert(ban.contributor_id, ban.reason);
-                }
+        if let Ok(data) = std::fs::read_to_string(&self.ban_file)
+            && let Ok(ban_file) = serde_json::from_str::<BanFile>(&data)
+        {
+            for ban in ban_file.bans {
+                self.banned.insert(ban.contributor_id, ban.reason);
             }
         }
     }
