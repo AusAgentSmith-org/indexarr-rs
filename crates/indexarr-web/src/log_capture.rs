@@ -131,10 +131,22 @@ impl LogCapture {
 
     pub fn categories(&self) -> Vec<String> {
         let buf = self.buffer.lock();
-        let mut cats: Vec<String> = buf.iter().map(|e| e.category.clone()).collect::<std::collections::HashSet<_>>().into_iter().collect();
+        let mut cats: Vec<String> = buf
+            .iter()
+            .map(|e| e.category.clone())
+            .collect::<std::collections::HashSet<_>>()
+            .into_iter()
+            .collect();
         cats.sort();
         if cats.is_empty() {
-            cats = vec!["system".into(), "dht".into(), "resolver".into(), "announcer".into(), "sync".into(), "api".into()];
+            cats = vec![
+                "system".into(),
+                "dht".into(),
+                "resolver".into(),
+                "announcer".into(),
+                "sync".into(),
+                "api".into(),
+            ];
         }
         cats
     }
@@ -194,7 +206,8 @@ where
         };
 
         if !message.is_empty() {
-            self.capture.add_from_tracing(event.metadata().target(), level, &message);
+            self.capture
+                .add_from_tracing(event.metadata().target(), level, &message);
         }
     }
 }

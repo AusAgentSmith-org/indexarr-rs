@@ -13,7 +13,7 @@ indexarr-parser = { path = "../indexarr-parser" }
 indexarr-classifier = { path = "../indexarr-classifier" }
 
 # DHT library (re-exports Id20 from librtbit-core)
-dht = { git = "https://github.com/AusAgentSmith-org/librtbit-dht.git", tag = "v0.1.0", package = "librtbit-dht", default-features = false }
+dht = { git = "http://100.92.54.45:3002/indexarr/librtbit-dht.git", tag = "v0.1.0", package = "librtbit-dht", default-features = false }
 
 # Async
 tokio.workspace = true

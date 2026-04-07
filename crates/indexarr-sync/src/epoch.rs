@@ -95,7 +95,10 @@ pub async fn apply_epoch_declaration(
 ) -> Result<(), String> {
     let current = get_current_epoch(data_dir);
     if decl.epoch <= current {
-        return Err(format!("epoch {} not newer than current {}", decl.epoch, current));
+        return Err(format!(
+            "epoch {} not newer than current {}",
+            decl.epoch, current
+        ));
     }
 
     if !verify_declaration(decl, maintainer_pubkey) {
@@ -111,11 +114,14 @@ pub async fn apply_epoch_declaration(
 
     if adopt {
         // Bootstrap adoption: no purge, no transition timestamp
-        save_state(data_dir, &EpochState {
-            last_seen_epoch: decl.epoch,
-            transition_at: None,
-            purge_completed: true,
-        });
+        save_state(
+            data_dir,
+            &EpochState {
+                last_seen_epoch: decl.epoch,
+                transition_at: None,
+                purge_completed: true,
+            },
+        );
         tracing::info!(epoch = decl.epoch, "adopted epoch declaration (bootstrap)");
         return Ok(());
     }
@@ -130,30 +136,46 @@ pub async fn apply_epoch_declaration(
         let _ = sqlx::query("DELETE FROM torrent_tags WHERE info_hash IN (SELECT info_hash FROM torrents WHERE source = 'sync')").execute(pool).await;
         let _ = sqlx::query("DELETE FROM torrent_comments WHERE info_hash IN (SELECT info_hash FROM torrents WHERE source = 'sync')").execute(pool).await;
         let _ = sqlx::query("DELETE FROM torrent_votes WHERE info_hash IN (SELECT info_hash FROM torrents WHERE source = 'sync')").execute(pool).await;
-        let _ = sqlx::query("DELETE FROM torrents WHERE source = 'sync'").execute(pool).await;
-        let _ = sqlx::query(&format!("UPDATE torrents SET sync_sequence = NULL, epoch = {} WHERE source != 'sync'", decl.epoch)).execute(pool).await;
+        let _ = sqlx::query("DELETE FROM torrents WHERE source = 'sync'")
+            .execute(pool)
+            .await;
+        let _ = sqlx::query(&format!(
+            "UPDATE torrents SET sync_sequence = NULL, epoch = {} WHERE source != 'sync'",
+            decl.epoch
+        ))
+        .execute(pool)
+        .await;
     } else {
         // Non-seed: purge everything
         tracing::info!(epoch = decl.epoch, "non-seed node: purging all data");
-        let _ = sqlx::query("DELETE FROM torrent_content").execute(pool).await;
+        let _ = sqlx::query("DELETE FROM torrent_content")
+            .execute(pool)
+            .await;
         let _ = sqlx::query("DELETE FROM torrent_files").execute(pool).await;
         let _ = sqlx::query("DELETE FROM torrent_tags").execute(pool).await;
-        let _ = sqlx::query("DELETE FROM torrent_comments").execute(pool).await;
+        let _ = sqlx::query("DELETE FROM torrent_comments")
+            .execute(pool)
+            .await;
         let _ = sqlx::query("DELETE FROM torrent_votes").execute(pool).await;
         let _ = sqlx::query("DELETE FROM torrents").execute(pool).await;
     }
 
     // Reset peer watermarks
-    let _ = sqlx::query("UPDATE sync_state SET last_sequence = 0").execute(pool).await;
+    let _ = sqlx::query("UPDATE sync_state SET last_sequence = 0")
+        .execute(pool)
+        .await;
 
     // Clean filesystem
     clean_sync_dir(&sync_dir);
 
-    save_state(data_dir, &EpochState {
-        last_seen_epoch: decl.epoch,
-        transition_at: Some(Utc::now()),
-        purge_completed: true,
-    });
+    save_state(
+        data_dir,
+        &EpochState {
+            last_seen_epoch: decl.epoch,
+            transition_at: Some(Utc::now()),
+            purge_completed: true,
+        },
+    );
 
     tracing::info!(epoch = decl.epoch, is_seed, "epoch transition complete");
     Ok(())

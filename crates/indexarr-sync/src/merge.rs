@@ -3,7 +3,7 @@ use std::path::Path;
 use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Row};
 
-use indexarr_identity::{verify_delta_signature, BanList};
+use indexarr_identity::{BanList, verify_delta_signature};
 
 use crate::epoch;
 
@@ -75,15 +75,24 @@ async fn merge_record(
     ban_list: &BanList,
     import_categories: &[String],
 ) -> Result<MergeAction, Box<dyn std::error::Error + Send + Sync>> {
-    let info_hash = record.get("info_hash").and_then(|v| v.as_str()).unwrap_or("");
+    let info_hash = record
+        .get("info_hash")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
     if info_hash.is_empty() || info_hash.len() != 40 {
         return Ok(MergeAction::Skipped);
     }
 
     let meta = record.get("_meta").unwrap_or(&serde_json::Value::Null);
     let record_epoch = meta.get("epoch").and_then(|v| v.as_i64()).unwrap_or(1) as i32;
-    let contributor_id = meta.get("contributor_id").and_then(|v| v.as_str()).unwrap_or("");
-    let pubkey = meta.get("contributor_pubkey").and_then(|v| v.as_str()).unwrap_or("");
+    let contributor_id = meta
+        .get("contributor_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let pubkey = meta
+        .get("contributor_pubkey")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
     let signature = meta.get("signature").and_then(|v| v.as_str()).unwrap_or("");
 
     // Epoch check
@@ -102,13 +111,21 @@ async fn merge_record(
     }
 
     // Skip private torrents
-    if record.get("private").and_then(|v| v.as_bool()).unwrap_or(false) {
+    if record
+        .get("private")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+    {
         return Ok(MergeAction::Skipped);
     }
 
     // Category filter
     if !import_categories.is_empty() {
-        let ct = record.get("content").and_then(|c| c.get("content_type")).and_then(|v| v.as_str()).unwrap_or("");
+        let ct = record
+            .get("content")
+            .and_then(|c| c.get("content_type"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
         if !ct.is_empty() && !import_categories.iter().any(|c| c == ct) {
             return Ok(MergeAction::Skipped);
         }
@@ -124,12 +141,11 @@ async fn merge_record(
     }
 
     // Check if torrent exists
-    let existing: Option<(Option<DateTime<Utc>>,)> = sqlx::query_as(
-        "SELECT resolved_at FROM torrents WHERE info_hash = $1"
-    )
-    .bind(info_hash)
-    .fetch_optional(pool)
-    .await?;
+    let existing: Option<(Option<DateTime<Utc>>,)> =
+        sqlx::query_as("SELECT resolved_at FROM torrents WHERE info_hash = $1")
+            .bind(info_hash)
+            .fetch_optional(pool)
+            .await?;
 
     match existing {
         None => {
@@ -158,8 +174,15 @@ async fn insert_torrent(
 ) -> Result<(), sqlx::Error> {
     let name = record.get("name").and_then(|v| v.as_str());
     let size = record.get("size").and_then(|v| v.as_i64());
-    let seed_count = record.get("seed_count").and_then(|v| v.as_i64()).unwrap_or(1).max(1) as i32;
-    let peer_count = record.get("peer_count").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+    let seed_count = record
+        .get("seed_count")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(1)
+        .max(1) as i32;
+    let peer_count = record
+        .get("peer_count")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0) as i32;
     let nfo = record.get("nfo").and_then(|v| v.as_str());
     let trackers = record.get("trackers");
     let epoch = meta.get("epoch").and_then(|v| v.as_i64()).unwrap_or(1) as i32;
@@ -169,7 +192,7 @@ async fn insert_torrent(
         "INSERT INTO torrents (info_hash, name, size, source, resolved_at, announced_at, \
          seed_count, peer_count, nfo, trackers, epoch, contributor_id) \
          VALUES ($1, $2, $3, 'sync', NOW(), NOW(), $4, $5, $6, $7, $8, $9) \
-         ON CONFLICT (info_hash) DO NOTHING"
+         ON CONFLICT (info_hash) DO NOTHING",
     )
     .bind(info_hash)
     .bind(name)
@@ -231,10 +254,12 @@ async fn insert_torrent(
             if !tag_val.is_empty() {
                 let _ = sqlx::query(
                     "INSERT INTO torrent_tags (info_hash, tag, source) VALUES ($1, $2, 'sync') \
-                     ON CONFLICT (info_hash, tag) DO NOTHING"
+                     ON CONFLICT (info_hash, tag) DO NOTHING",
                 )
-                .bind(info_hash).bind(tag_val)
-                .execute(pool).await;
+                .bind(info_hash)
+                .bind(tag_val)
+                .execute(pool)
+                .await;
             }
         }
     }
@@ -249,8 +274,15 @@ async fn update_unresolved(
 ) -> Result<(), sqlx::Error> {
     let name = record.get("name").and_then(|v| v.as_str());
     let size = record.get("size").and_then(|v| v.as_i64());
-    let seed_count = record.get("seed_count").and_then(|v| v.as_i64()).unwrap_or(0).max(1) as i32;
-    let peer_count = record.get("peer_count").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+    let seed_count = record
+        .get("seed_count")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0)
+        .max(1) as i32;
+    let peer_count = record
+        .get("peer_count")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0) as i32;
 
     sqlx::query(
         "UPDATE torrents SET \
@@ -260,7 +292,7 @@ async fn update_unresolved(
            seed_count = GREATEST(seed_count, $4), \
            peer_count = GREATEST(peer_count, $5), \
            no_peers = FALSE \
-         WHERE info_hash = $1"
+         WHERE info_hash = $1",
     )
     .bind(info_hash)
     .bind(name)
@@ -278,8 +310,14 @@ async fn fill_gaps(
     info_hash: &str,
     record: &serde_json::Value,
 ) -> Result<(), sqlx::Error> {
-    let seed_count = record.get("seed_count").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
-    let peer_count = record.get("peer_count").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+    let seed_count = record
+        .get("seed_count")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0) as i32;
+    let peer_count = record
+        .get("peer_count")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0) as i32;
 
     // Only fill: max seed/peer, fill nfo if missing
     sqlx::query(
@@ -287,7 +325,7 @@ async fn fill_gaps(
            seed_count = GREATEST(seed_count, $2), \
            peer_count = GREATEST(peer_count, $3), \
            nfo = COALESCE(nfo, $4) \
-         WHERE info_hash = $1"
+         WHERE info_hash = $1",
     )
     .bind(info_hash)
     .bind(seed_count)
@@ -303,10 +341,12 @@ async fn fill_gaps(
             if !tag_val.is_empty() {
                 let _ = sqlx::query(
                     "INSERT INTO torrent_tags (info_hash, tag, source) VALUES ($1, $2, 'sync') \
-                     ON CONFLICT (info_hash, tag) DO NOTHING"
+                     ON CONFLICT (info_hash, tag) DO NOTHING",
                 )
-                .bind(info_hash).bind(tag_val)
-                .execute(pool).await;
+                .bind(info_hash)
+                .bind(tag_val)
+                .execute(pool)
+                .await;
             }
         }
     }

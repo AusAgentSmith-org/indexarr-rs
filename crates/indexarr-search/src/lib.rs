@@ -143,7 +143,10 @@ pub async fn search(
     let has_fts_query = !filters.query.is_empty();
     if has_fts_query {
         bind_idx += 1;
-        conditions.push(format!("t.search_vector @@ plainto_tsquery('english', ${})", bind_idx));
+        conditions.push(format!(
+            "t.search_vector @@ plainto_tsquery('english', ${})",
+            bind_idx
+        ));
         bind_strings.push(filters.query.clone());
     }
 
@@ -419,44 +422,46 @@ async fn execute_search_query(
             sync_sequence: row.get("sync_sequence"),
         };
 
-        let content = row.get::<Option<String>, _>("c_info_hash").map(|_| TorrentContent {
-            info_hash: row.get("c_info_hash"),
-            content_type: row.get("content_type"),
-            title: row.get("title"),
-            year: row.get("year"),
-            season: row.get("season"),
-            episode: row.get("episode"),
-            episode_title: row.get("episode_title"),
-            group: row.get("group"),
-            language: row.get("language"),
-            resolution: row.get("resolution"),
-            codec: row.get("codec"),
-            video_source: row.get("video_source"),
-            modifier: row.get("modifier"),
-            is_3d: row.get("is_3d"),
-            hdr: row.get("hdr"),
-            audio_codec: row.get("audio_codec"),
-            audio_channels: row.get("audio_channels"),
-            edition: row.get("edition"),
-            bit_depth: row.get("bit_depth"),
-            network: row.get("network"),
-            quality_score: row.get("quality_score"),
-            is_dubbed: row.get("is_dubbed"),
-            is_complete: row.get("is_complete"),
-            is_remastered: row.get("is_remastered"),
-            is_scene: row.get("is_scene"),
-            is_proper: row.get("is_proper"),
-            is_repack: row.get("is_repack"),
-            platform: row.get("platform"),
-            has_subtitles: row.get("has_subtitles"),
-            is_anime: row.get("is_anime"),
-            music_format: row.get("music_format"),
-            tmdb_id: row.get("tmdb_id"),
-            imdb_id: row.get("imdb_id"),
-            tmdb_data: row.get("tmdb_data"),
-            classified_at: row.get("classified_at"),
-            classifier_version: row.get("classifier_version"),
-        });
+        let content = row
+            .get::<Option<String>, _>("c_info_hash")
+            .map(|_| TorrentContent {
+                info_hash: row.get("c_info_hash"),
+                content_type: row.get("content_type"),
+                title: row.get("title"),
+                year: row.get("year"),
+                season: row.get("season"),
+                episode: row.get("episode"),
+                episode_title: row.get("episode_title"),
+                group: row.get("group"),
+                language: row.get("language"),
+                resolution: row.get("resolution"),
+                codec: row.get("codec"),
+                video_source: row.get("video_source"),
+                modifier: row.get("modifier"),
+                is_3d: row.get("is_3d"),
+                hdr: row.get("hdr"),
+                audio_codec: row.get("audio_codec"),
+                audio_channels: row.get("audio_channels"),
+                edition: row.get("edition"),
+                bit_depth: row.get("bit_depth"),
+                network: row.get("network"),
+                quality_score: row.get("quality_score"),
+                is_dubbed: row.get("is_dubbed"),
+                is_complete: row.get("is_complete"),
+                is_remastered: row.get("is_remastered"),
+                is_scene: row.get("is_scene"),
+                is_proper: row.get("is_proper"),
+                is_repack: row.get("is_repack"),
+                platform: row.get("platform"),
+                has_subtitles: row.get("has_subtitles"),
+                is_anime: row.get("is_anime"),
+                music_format: row.get("music_format"),
+                tmdb_id: row.get("tmdb_id"),
+                imdb_id: row.get("imdb_id"),
+                tmdb_data: row.get("tmdb_data"),
+                classified_at: row.get("classified_at"),
+                classifier_version: row.get("classifier_version"),
+            });
 
         // Tags loaded separately to avoid N+1
         results.push(SearchResultItem {
@@ -468,9 +473,12 @@ async fn execute_search_query(
 
     // Batch-load tags for all results
     if !results.is_empty() {
-        let hashes: Vec<&str> = results.iter().map(|r| r.torrent.info_hash.as_str()).collect();
+        let hashes: Vec<&str> = results
+            .iter()
+            .map(|r| r.torrent.info_hash.as_str())
+            .collect();
         let tag_rows = sqlx::query_as::<_, (String, String)>(
-            "SELECT info_hash, tag FROM torrent_tags WHERE info_hash = ANY($1)"
+            "SELECT info_hash, tag FROM torrent_tags WHERE info_hash = ANY($1)",
         )
         .bind(&hashes)
         .fetch_all(pool)

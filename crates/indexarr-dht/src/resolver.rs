@@ -30,7 +30,15 @@ impl MetadataResolver {
         save_files_threshold: u32,
         cancel: CancellationToken,
     ) -> Self {
-        Self { pool, shared, engine, workers, timeout_secs, save_files_threshold, cancel }
+        Self {
+            pool,
+            shared,
+            engine,
+            workers,
+            timeout_secs,
+            save_files_threshold,
+            cancel,
+        }
     }
 
     /// Main resolver loop.
@@ -39,13 +47,21 @@ impl MetadataResolver {
 
         // Wait for DHT routing tables to populate
         loop {
-            if self.cancel.is_cancelled() { return; }
+            if self.cancel.is_cancelled() {
+                return;
+            }
             let stats = self.engine.stats();
             if stats.total_routing_nodes >= 20 {
-                tracing::info!(nodes = stats.total_routing_nodes, "routing table ready, starting resolver");
+                tracing::info!(
+                    nodes = stats.total_routing_nodes,
+                    "routing table ready, starting resolver"
+                );
                 break;
             }
-            tracing::debug!(nodes = stats.total_routing_nodes, "waiting for routing table...");
+            tracing::debug!(
+                nodes = stats.total_routing_nodes,
+                "waiting for routing table..."
+            );
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
         }
 
@@ -55,7 +71,9 @@ impl MetadataResolver {
         let semaphore = Arc::new(tokio::sync::Semaphore::new(self.workers));
 
         loop {
-            if self.cancel.is_cancelled() { break; }
+            if self.cancel.is_cancelled() {
+                break;
+            }
 
             // Get unresolved hashes to work on
             let batch = self.get_unresolved_batch(self.workers * 2).await;
@@ -74,7 +92,8 @@ impl MetadataResolver {
                 if !discovered.contains_key(hash) {
                     let cached = self.shared.get_peers(hash);
                     if !cached.is_empty() {
-                        let addrs: Vec<SocketAddr> = cached.iter()
+                        let addrs: Vec<SocketAddr> = cached
+                            .iter()
                             .filter_map(|(ip, port)| format!("{ip}:{port}").parse().ok())
                             .collect();
                         if !addrs.is_empty() {
@@ -86,10 +105,14 @@ impl MetadataResolver {
 
             // Resolve each hash that has peers
             for entry in discovered.iter() {
-                if self.cancel.is_cancelled() { break; }
+                if self.cancel.is_cancelled() {
+                    break;
+                }
                 let hash = entry.key().clone();
                 let peers = entry.value().clone();
-                if peers.is_empty() { continue; }
+                if peers.is_empty() {
+                    continue;
+                }
 
                 let permit = match semaphore.clone().acquire_owned().await {
                     Ok(p) => p,
@@ -103,7 +126,9 @@ impl MetadataResolver {
 
                 tokio::spawn(async move {
                     let _permit = permit;
-                    if cancel.is_cancelled() { return; }
+                    if cancel.is_cancelled() {
+                        return;
+                    }
 
                     // Increment resolve attempts
                     let _ = sqlx::query("UPDATE torrents SET resolve_attempts = resolve_attempts + 1 WHERE info_hash = $1")
@@ -136,12 +161,13 @@ impl MetadataResolver {
 
             // Stats
             if last_stats.elapsed().as_secs() >= 30 {
-                let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM torrents WHERE resolved_at IS NOT NULL")
-                    .fetch_one(&self.pool).await.unwrap_or(0);
-                tracing::info!(
-                    total_resolved = total,
-                    "resolver stats"
-                );
+                let total: i64 = sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM torrents WHERE resolved_at IS NOT NULL",
+                )
+                .fetch_one(&self.pool)
+                .await
+                .unwrap_or(0);
+                tracing::info!(total_resolved = total, "resolver stats");
                 last_stats = Instant::now();
             }
 
@@ -154,7 +180,10 @@ impl MetadataResolver {
     /// Get a batch of unresolved info_hashes from the DB.
     async fn get_unresolved_batch(&self, limit: usize) -> Vec<String> {
         // First check cached peers for fast path
-        let cached_hashes: Vec<String> = self.shared.peer_cache.iter()
+        let cached_hashes: Vec<String> = self
+            .shared
+            .peer_cache
+            .iter()
             .take(limit * 2)
             .map(|e| e.key().clone())
             .collect();
@@ -168,7 +197,7 @@ impl MetadataResolver {
                    AND resolve_attempts < 5 \
                    AND source != 'uploaded' \
                  ORDER BY priority DESC, observations DESC \
-                 LIMIT $2"
+                 LIMIT $2",
             )
             .bind(&cached_hashes)
             .bind(limit as i64)
@@ -192,11 +221,12 @@ impl MetadataResolver {
                               CASE WHEN source IN ('announce', 'get_peers') THEN 0 ELSE 1 END, \
                               observations DESC, \
                               discovered_at DESC \
-                     LIMIT $1"
+                     LIMIT $1",
                 )
                 .bind(remaining as i64)
                 .fetch_all(&self.pool)
-                .await {
+                .await
+                {
                     for r in more {
                         let h: String = r.get("info_hash");
                         if !result.contains(&h) {
@@ -218,7 +248,7 @@ impl MetadataResolver {
                       CASE WHEN source IN ('announce', 'get_peers') THEN 0 ELSE 1 END, \
                       observations DESC, \
                       discovered_at DESC \
-             LIMIT $1"
+             LIMIT $1",
         )
         .bind(limit as i64)
         .fetch_all(&self.pool)
@@ -296,13 +326,15 @@ async fn process_resolved(
 ) -> Result<(), sqlx::Error> {
     // Parse and classify
     let parsed = indexarr_parser::parse(&meta.name);
-    let file_infos: Vec<indexarr_classifier::FileInfo> = meta.files.iter().map(|f| {
-        indexarr_classifier::FileInfo {
+    let file_infos: Vec<indexarr_classifier::FileInfo> = meta
+        .files
+        .iter()
+        .map(|f| indexarr_classifier::FileInfo {
             path: f.path.clone(),
             size: f.size,
             extension: f.path.rsplit('.').next().map(|s| s.to_string()),
-        }
-    }).collect();
+        })
+        .collect();
 
     let classification = indexarr_classifier::classify(&parsed, &file_infos, &meta.name);
     let quality_score = indexarr_classifier::compute_quality_score(&parsed);
@@ -314,7 +346,7 @@ async fn process_resolved(
            seed_count = GREATEST(seed_count, $5), peer_count = GREATEST(peer_count, $6), \
            no_peers = FALSE, priority = FALSE, \
            piece_length = $7, piece_count = $8 \
-         WHERE info_hash = $1"
+         WHERE info_hash = $1",
     )
     .bind(info_hash)
     .bind(&meta.name)
@@ -393,7 +425,7 @@ async fn process_resolved(
     for tag in &classification.tags {
         let _ = sqlx::query(
             "INSERT INTO torrent_tags (info_hash, tag, source) VALUES ($1, $2, 'classifier') \
-             ON CONFLICT (info_hash, tag) DO NOTHING"
+             ON CONFLICT (info_hash, tag) DO NOTHING",
         )
         .bind(info_hash)
         .bind(tag)

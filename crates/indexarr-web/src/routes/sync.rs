@@ -12,9 +12,7 @@ use sqlx::Row;
 
 use crate::state::AppState;
 
-async fn get_sync_dashboard(
-    State(state): State<Arc<AppState>>,
-) -> Json<serde_json::Value> {
+async fn get_sync_dashboard(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let pool = &state.pool;
 
     // Peer list from DB
@@ -42,7 +40,10 @@ async fn get_sync_dashboard(
         })
     }).collect();
 
-    let healthy_count = peers.iter().filter(|p| p.get("healthy").and_then(|v| v.as_bool()).unwrap_or(false)).count();
+    let healthy_count = peers
+        .iter()
+        .filter(|p| p.get("healthy").and_then(|v| v.as_bool()).unwrap_or(false))
+        .count();
 
     // Sequence from file
     let seq_path = state.settings.data_dir.join("sync").join("sequence");
@@ -52,14 +53,18 @@ async fn get_sync_dashboard(
         .unwrap_or(0);
 
     // Total imported (source = 'sync')
-    let total_imported: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM torrents WHERE source = 'sync'"
-    ).fetch_one(pool).await.unwrap_or(0);
+    let total_imported: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM torrents WHERE source = 'sync'")
+            .fetch_one(pool)
+            .await
+            .unwrap_or(0);
 
     // Total exported
-    let total_exported: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM torrents WHERE sync_sequence IS NOT NULL"
-    ).fetch_one(pool).await.unwrap_or(0);
+    let total_exported: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM torrents WHERE sync_sequence IS NOT NULL")
+            .fetch_one(pool)
+            .await
+            .unwrap_or(0);
 
     let epoch = indexarr_sync::epoch::get_current_epoch(&state.settings.data_dir);
 
@@ -89,9 +94,7 @@ async fn get_sync_dashboard(
     }))
 }
 
-async fn get_sync_latest(
-    State(state): State<Arc<AppState>>,
-) -> Json<serde_json::Value> {
+async fn get_sync_latest(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let seq_path = state.settings.data_dir.join("sync").join("sequence");
     let sequence: i64 = std::fs::read_to_string(&seq_path)
         .ok()
@@ -105,12 +108,12 @@ async fn get_sync_latest(
     }))
 }
 
-async fn get_sync_status(
-    State(state): State<Arc<AppState>>,
-) -> Json<serde_json::Value> {
+async fn get_sync_status(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let pool = &state.pool;
     let peer_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM sync_state")
-        .fetch_one(pool).await.unwrap_or(0);
+        .fetch_one(pool)
+        .await
+        .unwrap_or(0);
 
     Json(serde_json::json!({
         "enabled": state.settings.sync_enabled,
@@ -119,9 +122,7 @@ async fn get_sync_status(
     }))
 }
 
-async fn get_sync_manifest(
-    State(state): State<Arc<AppState>>,
-) -> Json<serde_json::Value> {
+async fn get_sync_manifest(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let identity = state.identity.read();
     let contributor_id = identity.contributor_id().unwrap_or("unknown").to_string();
     drop(identity);
@@ -136,22 +137,25 @@ async fn get_sync_manifest(
     Json(serde_json::to_value(&manifest).unwrap_or_default())
 }
 
-async fn get_sync_peers(
-    State(state): State<Arc<AppState>>,
-) -> Json<serde_json::Value> {
+async fn get_sync_peers(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let pool = &state.pool;
     let rows = sqlx::query(
-        "SELECT peer_id, peer_url, last_sequence FROM sync_state WHERE peer_url IS NOT NULL"
+        "SELECT peer_id, peer_url, last_sequence FROM sync_state WHERE peer_url IS NOT NULL",
     )
     .fetch_all(pool)
     .await
     .unwrap_or_default();
 
-    let peers: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "contributor_id": r.get::<String, _>("peer_id"),
-        "url": r.get::<Option<String>, _>("peer_url"),
-        "sequence": r.get::<i64, _>("last_sequence"),
-    })).collect();
+    let peers: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "contributor_id": r.get::<String, _>("peer_id"),
+                "url": r.get::<Option<String>, _>("peer_url"),
+                "sequence": r.get::<i64, _>("last_sequence"),
+            })
+        })
+        .collect();
 
     Json(serde_json::json!({ "peers": peers }))
 }
@@ -168,14 +172,15 @@ async fn get_sync_delta(
             let path = entry.path();
             if path.extension().and_then(|e| e.to_str()) == Some("gz") {
                 if let Ok(data) = std::fs::read(&path) {
-                    use sha2::{Sha256, Digest};
+                    use sha2::{Digest, Sha256};
                     let hash = hex::encode(Sha256::digest(&data));
                     if hash == content_hash {
                         return (
                             StatusCode::OK,
                             [(header::CONTENT_TYPE, "application/gzip")],
                             data,
-                        ).into_response();
+                        )
+                            .into_response();
                     }
                 }
             }

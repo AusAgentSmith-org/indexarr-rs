@@ -11,11 +11,7 @@ const FLUSH_INTERVAL_SECS: u64 = 5;
 const STATS_INTERVAL_SECS: u64 = 60;
 
 /// Background worker that drains the hash queue and inserts into the database.
-pub async fn run_hash_ingest(
-    pool: PgPool,
-    shared: Arc<DhtSharedState>,
-    cancel: CancellationToken,
-) {
+pub async fn run_hash_ingest(pool: PgPool, shared: Arc<DhtSharedState>, cancel: CancellationToken) {
     tracing::info!("hash ingest worker started");
 
     let mut pending: Vec<DiscoveredHash> = Vec::with_capacity(BATCH_SIZE);
@@ -78,11 +74,7 @@ pub async fn run_hash_ingest(
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
 
-    tracing::info!(
-        total_inserted,
-        total_updated,
-        "hash ingest worker stopped"
-    );
+    tracing::info!(total_inserted, total_updated, "hash ingest worker stopped");
 }
 
 /// Flush a batch of discovered hashes to the database.
@@ -125,7 +117,7 @@ async fn upsert_hash(pool: &PgPool, hash: &DiscoveredHash) -> Result<bool, sqlx:
              WHEN $2 = 'get_peers' AND torrents.source NOT IN ('announce') THEN 'get_peers' \
              ELSE torrents.source \
            END \
-         RETURNING (xmax = 0) AS is_new"
+         RETURNING (xmax = 0) AS is_new",
     )
     .bind(&hash.info_hash)
     .bind(&hash.source)

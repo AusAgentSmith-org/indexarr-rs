@@ -20,7 +20,9 @@ pub struct CreateCommentRequest {
     nickname: String,
 }
 
-fn default_anon() -> String { "Anonymous".into() }
+fn default_anon() -> String {
+    "Anonymous".into()
+}
 
 #[derive(Debug, Serialize)]
 struct CommentResponse {
@@ -48,16 +50,25 @@ async fn get_comments(
     .await
     .map_err(db_err)?;
 
-    let comments: Vec<CommentResponse> = rows.iter().map(|r| CommentResponse {
-        id: r.get("id"),
-        parent_id: r.get("parent_id"),
-        nickname: r.get("nickname"),
-        body: if r.get::<bool, _>("deleted") { "[deleted]".into() } else { r.get("body") },
-        created_at: r.get::<DateTime<Utc>, _>("created_at").to_rfc3339(),
-        edited_at: r.get::<Option<DateTime<Utc>>, _>("edited_at").map(|d| d.to_rfc3339()),
-        deleted: r.get("deleted"),
-        is_own: false, // Would need fingerprint from request
-    }).collect();
+    let comments: Vec<CommentResponse> = rows
+        .iter()
+        .map(|r| CommentResponse {
+            id: r.get("id"),
+            parent_id: r.get("parent_id"),
+            nickname: r.get("nickname"),
+            body: if r.get::<bool, _>("deleted") {
+                "[deleted]".into()
+            } else {
+                r.get("body")
+            },
+            created_at: r.get::<DateTime<Utc>, _>("created_at").to_rfc3339(),
+            edited_at: r
+                .get::<Option<DateTime<Utc>>, _>("edited_at")
+                .map(|d| d.to_rfc3339()),
+            deleted: r.get("deleted"),
+            is_own: false, // Would need fingerprint from request
+        })
+        .collect();
 
     Ok(Json(serde_json::json!({
         "comments": comments,
@@ -74,12 +85,15 @@ async fn create_comment(
 
     // Validate body length
     if body.body.is_empty() || body.body.len() > 2000 {
-        return Err((axum::http::StatusCode::BAD_REQUEST, "body must be 1-2000 chars".into()));
+        return Err((
+            axum::http::StatusCode::BAD_REQUEST,
+            "body must be 1-2000 chars".into(),
+        ));
     }
 
     // Check torrent exists and is resolved
     let exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM torrents WHERE info_hash = $1 AND resolved_at IS NOT NULL)"
+        "SELECT EXISTS(SELECT 1 FROM torrents WHERE info_hash = $1 AND resolved_at IS NOT NULL)",
     )
     .bind(&hash)
     .fetch_one(&state.pool)
@@ -87,14 +101,17 @@ async fn create_comment(
     .map_err(db_err)?;
 
     if !exists {
-        return Err((axum::http::StatusCode::NOT_FOUND, "torrent not found or unresolved".into()));
+        return Err((
+            axum::http::StatusCode::NOT_FOUND,
+            "torrent not found or unresolved".into(),
+        ));
     }
 
     let fingerprint = "anonymous"; // In production, derive from IP/headers
 
     let row = sqlx::query(
         "INSERT INTO torrent_comments (info_hash, parent_id, nickname, body, fingerprint) \
-         VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at"
+         VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at",
     )
     .bind(&hash)
     .bind(body.parent_id)
@@ -130,13 +147,20 @@ async fn get_votes(
 ) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, String)> {
     let hash = info_hash.to_lowercase();
 
-    let upvotes: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM torrent_votes WHERE info_hash = $1 AND value = 1"
-    ).bind(&hash).fetch_one(&state.pool).await.map_err(db_err)?;
+    let upvotes: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM torrent_votes WHERE info_hash = $1 AND value = 1")
+            .bind(&hash)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(db_err)?;
 
     let downvotes: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM torrent_votes WHERE info_hash = $1 AND value = -1"
-    ).bind(&hash).fetch_one(&state.pool).await.map_err(db_err)?;
+        "SELECT COUNT(*) FROM torrent_votes WHERE info_hash = $1 AND value = -1",
+    )
+    .bind(&hash)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(db_err)?;
 
     Ok(Json(serde_json::json!({
         "upvotes": upvotes,
@@ -153,14 +177,17 @@ async fn cast_vote(
     let hash = info_hash.to_lowercase();
 
     if body.value != 1 && body.value != -1 {
-        return Err((axum::http::StatusCode::BAD_REQUEST, "value must be 1 or -1".into()));
+        return Err((
+            axum::http::StatusCode::BAD_REQUEST,
+            "value must be 1 or -1".into(),
+        ));
     }
 
     let fingerprint = "anonymous";
 
     // Upsert: toggle if same vote, replace if different
     let existing = sqlx::query_scalar::<_, Option<i32>>(
-        "SELECT value FROM torrent_votes WHERE info_hash = $1 AND fingerprint = $2"
+        "SELECT value FROM torrent_votes WHERE info_hash = $1 AND fingerprint = $2",
     )
     .bind(&hash)
     .bind(fingerprint)
@@ -173,22 +200,35 @@ async fn cast_vote(
         Some(v) if v == body.value => {
             // Toggle off
             sqlx::query("DELETE FROM torrent_votes WHERE info_hash = $1 AND fingerprint = $2")
-                .bind(&hash).bind(fingerprint)
-                .execute(&state.pool).await.map_err(db_err)?;
+                .bind(&hash)
+                .bind(fingerprint)
+                .execute(&state.pool)
+                .await
+                .map_err(db_err)?;
         }
         Some(_) => {
             // Change vote
-            sqlx::query("UPDATE torrent_votes SET value = $1 WHERE info_hash = $2 AND fingerprint = $3")
-                .bind(body.value).bind(&hash).bind(fingerprint)
-                .execute(&state.pool).await.map_err(db_err)?;
+            sqlx::query(
+                "UPDATE torrent_votes SET value = $1 WHERE info_hash = $2 AND fingerprint = $3",
+            )
+            .bind(body.value)
+            .bind(&hash)
+            .bind(fingerprint)
+            .execute(&state.pool)
+            .await
+            .map_err(db_err)?;
         }
         None => {
             // New vote
             sqlx::query(
-                "INSERT INTO torrent_votes (info_hash, fingerprint, value) VALUES ($1, $2, $3)"
+                "INSERT INTO torrent_votes (info_hash, fingerprint, value) VALUES ($1, $2, $3)",
             )
-            .bind(&hash).bind(fingerprint).bind(body.value)
-            .execute(&state.pool).await.map_err(db_err)?;
+            .bind(&hash)
+            .bind(fingerprint)
+            .bind(body.value)
+            .execute(&state.pool)
+            .await
+            .map_err(db_err)?;
         }
     }
 
@@ -211,14 +251,17 @@ async fn suggest_nuke(
     let hash = info_hash.to_lowercase();
 
     if body.reason.len() < 10 || body.reason.len() > 500 {
-        return Err((axum::http::StatusCode::BAD_REQUEST, "reason must be 10-500 chars".into()));
+        return Err((
+            axum::http::StatusCode::BAD_REQUEST,
+            "reason must be 10-500 chars".into(),
+        ));
     }
 
     let fingerprint = "anonymous";
 
     sqlx::query(
         "INSERT INTO nuke_suggestions (info_hash, fingerprint, reason) VALUES ($1, $2, $3) \
-         ON CONFLICT (info_hash, fingerprint) DO NOTHING"
+         ON CONFLICT (info_hash, fingerprint) DO NOTHING",
     )
     .bind(&hash)
     .bind(fingerprint)
@@ -242,21 +285,26 @@ async fn get_pending_nukes(
          FROM nuke_suggestions ns JOIN torrents t ON t.info_hash = ns.info_hash \
          WHERE ns.reviewed = FALSE \
          ORDER BY suggestion_count DESC, ns.created_at DESC \
-         LIMIT $1"
+         LIMIT $1",
     )
     .bind(limit)
     .fetch_all(&state.pool)
     .await
     .map_err(db_err)?;
 
-    let suggestions: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "id": r.get::<i32, _>("id"),
-        "info_hash": r.get::<String, _>("info_hash"),
-        "torrent_name": r.get::<Option<String>, _>("torrent_name"),
-        "reason": r.get::<String, _>("reason"),
-        "created_at": r.get::<DateTime<Utc>, _>("created_at").to_rfc3339(),
-        "suggestion_count": r.get::<i64, _>("suggestion_count"),
-    })).collect();
+    let suggestions: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "id": r.get::<i32, _>("id"),
+                "info_hash": r.get::<String, _>("info_hash"),
+                "torrent_name": r.get::<Option<String>, _>("torrent_name"),
+                "reason": r.get::<String, _>("reason"),
+                "created_at": r.get::<DateTime<Utc>, _>("created_at").to_rfc3339(),
+                "suggestion_count": r.get::<i64, _>("suggestion_count"),
+            })
+        })
+        .collect();
 
     Ok(Json(serde_json::json!({
         "suggestions": suggestions,
@@ -275,7 +323,10 @@ async fn review_nuke(
     Json(body): Json<ReviewNukeRequest>,
 ) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, String)> {
     if !matches!(body.outcome.as_str(), "nuked" | "dismissed") {
-        return Err((axum::http::StatusCode::BAD_REQUEST, "outcome must be 'nuked' or 'dismissed'".into()));
+        return Err((
+            axum::http::StatusCode::BAD_REQUEST,
+            "outcome must be 'nuked' or 'dismissed'".into(),
+        ));
     }
 
     sqlx::query(
@@ -289,9 +340,12 @@ async fn review_nuke(
 
     // If nuked, delete the torrent
     if body.outcome == "nuked" {
-        let hash: Option<String> = sqlx::query_scalar(
-            "SELECT info_hash FROM nuke_suggestions WHERE id = $1"
-        ).bind(suggestion_id).fetch_optional(&state.pool).await.map_err(db_err)?;
+        let hash: Option<String> =
+            sqlx::query_scalar("SELECT info_hash FROM nuke_suggestions WHERE id = $1")
+                .bind(suggestion_id)
+                .fetch_optional(&state.pool)
+                .await
+                .map_err(db_err)?;
 
         if let Some(hash) = hash {
             sqlx::query("DELETE FROM torrents WHERE info_hash = $1")
@@ -312,7 +366,7 @@ async fn delete_comment(
     // Soft delete — set deleted flag and replace body
     sqlx::query(
         "UPDATE torrent_comments SET deleted = TRUE, body = '[deleted]', edited_at = NOW() \
-         WHERE id = $1"
+         WHERE id = $1",
     )
     .bind(comment_id)
     .execute(&state.pool)
@@ -335,8 +389,14 @@ fn db_err(e: sqlx::Error) -> (axum::http::StatusCode, String) {
 pub fn router() -> Router<Arc<AppState>> {
     use axum::routing::delete;
     Router::new()
-        .route("/torrent/{info_hash}/comments", get(get_comments).post(create_comment))
-        .route("/torrent/{info_hash}/comments/{comment_id}", delete(delete_comment))
+        .route(
+            "/torrent/{info_hash}/comments",
+            get(get_comments).post(create_comment),
+        )
+        .route(
+            "/torrent/{info_hash}/comments/{comment_id}",
+            delete(delete_comment),
+        )
         .route("/torrent/{info_hash}/votes", get(get_votes))
         .route("/torrent/{info_hash}/vote", post(cast_vote))
         .route("/torrent/{info_hash}/nuke", post(suggest_nuke))

@@ -47,7 +47,7 @@ async fn upload_magnets(
             Some((hash, name)) => {
                 // Check for existing
                 let exists: bool = sqlx::query_scalar(
-                    "SELECT EXISTS(SELECT 1 FROM torrents WHERE info_hash = $1)"
+                    "SELECT EXISTS(SELECT 1 FROM torrents WHERE info_hash = $1)",
                 )
                 .bind(&hash)
                 .fetch_one(pool)
@@ -66,7 +66,7 @@ async fn upload_magnets(
                     sqlx::query(
                         "INSERT INTO torrents (info_hash, name, source, priority, discovered_at) \
                          VALUES ($1, $2, 'upload', TRUE, NOW()) \
-                         ON CONFLICT (info_hash) DO NOTHING"
+                         ON CONFLICT (info_hash) DO NOTHING",
                     )
                     .bind(&hash)
                     .bind(&name)
@@ -95,7 +95,12 @@ async fn upload_magnets(
         }
     }
 
-    Ok(Json(MagnetUploadResponse { results, queued, duplicates, errors }))
+    Ok(Json(MagnetUploadResponse {
+        results,
+        queued,
+        duplicates,
+        errors,
+    }))
 }
 
 /// Parse a magnet URI and extract (info_hash, display_name).
@@ -189,7 +194,7 @@ async fn upload_torrents(
         match parse_torrent_file(&data) {
             Some(parsed) => {
                 let exists: bool = sqlx::query_scalar(
-                    "SELECT EXISTS(SELECT 1 FROM torrents WHERE info_hash = $1)"
+                    "SELECT EXISTS(SELECT 1 FROM torrents WHERE info_hash = $1)",
                 )
                 .bind(&parsed.info_hash)
                 .fetch_one(pool)
@@ -234,14 +239,17 @@ async fn upload_torrents(
 
                     // Run content pipeline
                     let parsed_name = indexarr_parser::parse(&parsed.name);
-                    let file_infos: Vec<indexarr_classifier::FileInfo> = parsed.files.iter().map(|f| {
-                        indexarr_classifier::FileInfo {
+                    let file_infos: Vec<indexarr_classifier::FileInfo> = parsed
+                        .files
+                        .iter()
+                        .map(|f| indexarr_classifier::FileInfo {
                             path: f.path.clone(),
                             size: f.size,
                             extension: f.path.rsplit('.').next().map(|s| s.to_string()),
-                        }
-                    }).collect();
-                    let classification = indexarr_classifier::classify(&parsed_name, &file_infos, &parsed.name);
+                        })
+                        .collect();
+                    let classification =
+                        indexarr_classifier::classify(&parsed_name, &file_infos, &parsed.name);
                     let quality_score = indexarr_classifier::compute_quality_score(&parsed_name);
 
                     let _ = sqlx::query(
@@ -328,9 +336,20 @@ fn parse_torrent_file(data: &[u8]) -> Option<ParsedTorrentFile> {
     let info_hash = hex::encode(hasher.finalize());
 
     let name = info.get("name").and_then(|v| v.as_string())?.to_string();
-    let piece_length = info.get("piece length").and_then(|v| v.as_int()).map(|v| v as i32);
-    let pieces_len = info.get("pieces").and_then(|v| v.as_bytes()).map(|b| b.len()).unwrap_or(0);
-    let piece_count = if pieces_len > 0 { Some((pieces_len / 20) as i32) } else { None };
+    let piece_length = info
+        .get("piece length")
+        .and_then(|v| v.as_int())
+        .map(|v| v as i32);
+    let pieces_len = info
+        .get("pieces")
+        .and_then(|v| v.as_bytes())
+        .map(|b| b.len())
+        .unwrap_or(0);
+    let piece_count = if pieces_len > 0 {
+        Some((pieces_len / 20) as i32)
+    } else {
+        None
+    };
     let is_private = info.get("private").and_then(|v| v.as_int()).unwrap_or(0) != 0;
 
     let mut files = Vec::new();
@@ -342,7 +361,8 @@ fn parse_torrent_file(data: &[u8]) -> Option<ParsedTorrentFile> {
             let fd = f.as_dict()?;
             let size = fd.get("length").and_then(|v| v.as_int()).unwrap_or(0);
             let path_parts = fd.get("path").and_then(|v| v.as_list())?;
-            let path: String = path_parts.iter()
+            let path: String = path_parts
+                .iter()
                 .filter_map(|p| p.as_string())
                 .collect::<Vec<_>>()
                 .join("/");
@@ -353,11 +373,20 @@ fn parse_torrent_file(data: &[u8]) -> Option<ParsedTorrentFile> {
         // Single-file torrent
         let size = info.get("length").and_then(|v| v.as_int()).unwrap_or(0);
         total_size = size;
-        files.push(TorrentFileEntry { path: name.clone(), size });
+        files.push(TorrentFileEntry {
+            path: name.clone(),
+            size,
+        });
     }
 
     Some(ParsedTorrentFile {
-        info_hash, name, total_size, files, is_private, piece_length, piece_count,
+        info_hash,
+        name,
+        total_size,
+        files,
+        is_private,
+        piece_length,
+        piece_count,
     })
 }
 
@@ -372,11 +401,37 @@ enum BValue {
 }
 
 impl BValue {
-    fn as_int(&self) -> Option<i64> { if let BValue::Int(i) = self { Some(*i) } else { None } }
-    fn as_bytes(&self) -> Option<&[u8]> { if let BValue::Bytes(b) = self { Some(b) } else { None } }
-    fn as_string(&self) -> Option<&str> { self.as_bytes().and_then(|b| std::str::from_utf8(b).ok()) }
-    fn as_list(&self) -> Option<&[BValue]> { if let BValue::List(l) = self { Some(l) } else { None } }
-    fn as_dict(&self) -> Option<&Vec<(String, BValue)>> { if let BValue::Dict(d) = self { Some(d) } else { None } }
+    fn as_int(&self) -> Option<i64> {
+        if let BValue::Int(i) = self {
+            Some(*i)
+        } else {
+            None
+        }
+    }
+    fn as_bytes(&self) -> Option<&[u8]> {
+        if let BValue::Bytes(b) = self {
+            Some(b)
+        } else {
+            None
+        }
+    }
+    fn as_string(&self) -> Option<&str> {
+        self.as_bytes().and_then(|b| std::str::from_utf8(b).ok())
+    }
+    fn as_list(&self) -> Option<&[BValue]> {
+        if let BValue::List(l) = self {
+            Some(l)
+        } else {
+            None
+        }
+    }
+    fn as_dict(&self) -> Option<&Vec<(String, BValue)>> {
+        if let BValue::Dict(d) = self {
+            Some(d)
+        } else {
+            None
+        }
+    }
 }
 
 trait DictExt {
@@ -395,7 +450,9 @@ fn bencode_decode(data: &[u8]) -> Option<BValue> {
 }
 
 fn decode_value(data: &[u8], pos: usize, depth: usize) -> Option<(BValue, usize)> {
-    if depth > 32 || pos >= data.len() { return None; }
+    if depth > 32 || pos >= data.len() {
+        return None;
+    }
     match data[pos] {
         b'i' => decode_int(data, pos),
         b'l' => decode_list(data, pos, depth),
@@ -406,17 +463,22 @@ fn decode_value(data: &[u8], pos: usize, depth: usize) -> Option<(BValue, usize)
 }
 
 fn decode_int(data: &[u8], pos: usize) -> Option<(BValue, usize)> {
-    let end = data[pos+1..].iter().position(|&b| b == b'e')? + pos + 1;
-    let s = std::str::from_utf8(&data[pos+1..end]).ok()?;
+    let end = data[pos + 1..].iter().position(|&b| b == b'e')? + pos + 1;
+    let s = std::str::from_utf8(&data[pos + 1..end]).ok()?;
     Some((BValue::Int(s.parse().ok()?), end + 1))
 }
 
 fn decode_bytes(data: &[u8], pos: usize) -> Option<(BValue, usize)> {
-    let colon = data[pos..].iter().position(|&b| b == b':')?  + pos;
+    let colon = data[pos..].iter().position(|&b| b == b':')? + pos;
     let len: usize = std::str::from_utf8(&data[pos..colon]).ok()?.parse().ok()?;
     let start = colon + 1;
-    if start + len > data.len() { return None; }
-    Some((BValue::Bytes(data[start..start+len].to_vec()), start + len))
+    if start + len > data.len() {
+        return None;
+    }
+    Some((
+        BValue::Bytes(data[start..start + len].to_vec()),
+        start + len,
+    ))
 }
 
 fn decode_list(data: &[u8], pos: usize, depth: usize) -> Option<(BValue, usize)> {
@@ -435,7 +497,12 @@ fn decode_dict(data: &[u8], pos: usize, depth: usize) -> Option<(BValue, usize)>
     let mut p = pos + 1;
     while p < data.len() && data[p] != b'e' {
         let (key_val, next) = decode_bytes(data, p)?;
-        let key = String::from_utf8(if let BValue::Bytes(b) = key_val { b } else { return None }).ok()?;
+        let key = String::from_utf8(if let BValue::Bytes(b) = key_val {
+            b
+        } else {
+            return None;
+        })
+        .ok()?;
         let (val, next2) = decode_value(data, next, depth + 1)?;
         items.push((key, val));
         p = next2;
@@ -454,22 +521,31 @@ fn find_info_dict_range(data: &[u8]) -> Option<(usize, usize)> {
     let mut depth = 0i32;
     let mut i = info_start;
     loop {
-        if i >= data.len() { return None; }
+        if i >= data.len() {
+            return None;
+        }
         match data[i] {
-            b'd' | b'l' => { depth += 1; i += 1; }
+            b'd' | b'l' => {
+                depth += 1;
+                i += 1;
+            }
             b'e' => {
                 depth -= 1;
                 i += 1;
-                if depth == 0 { return Some((info_start, i)); }
+                if depth == 0 {
+                    return Some((info_start, i));
+                }
             }
             b'i' => {
                 // Skip integer
-                while i < data.len() && data[i] != b'e' { i += 1; }
+                while i < data.len() && data[i] != b'e' {
+                    i += 1;
+                }
                 i += 1; // skip 'e'
             }
             b'0'..=b'9' => {
                 // Skip string: read length, skip colon + bytes
-                let colon = data[i..].iter().position(|&b| b == b':')?  + i;
+                let colon = data[i..].iter().position(|&b| b == b':')? + i;
                 let len: usize = std::str::from_utf8(&data[i..colon]).ok()?.parse().ok()?;
                 i = colon + 1 + len;
             }

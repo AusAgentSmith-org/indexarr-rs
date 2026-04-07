@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
-use ed25519_dalek::{SigningKey, VerifyingKey, Signer, Verifier, Signature};
-use sha2::{Sha256, Digest};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -90,7 +90,9 @@ impl ContributorIdentity {
     /// Read the pending recovery key, if any.
     pub fn pending_recovery_key(&self) -> Option<String> {
         let path = self.pending_file();
-        std::fs::read_to_string(path).ok().map(|s| s.trim().to_string())
+        std::fs::read_to_string(path)
+            .ok()
+            .map(|s| s.trim().to_string())
     }
 
     /// Mark onboarding as complete.
@@ -126,7 +128,10 @@ impl ContributorIdentity {
 
     /// Sign data with the contributor's private key.
     pub fn sign(&self, data: &[u8]) -> Result<Vec<u8>> {
-        let sk = self.signing_key.as_ref().ok_or(IdentityError::NotInitialized)?;
+        let sk = self
+            .signing_key
+            .as_ref()
+            .ok_or(IdentityError::NotInitialized)?;
         Ok(sk.sign(data).to_bytes().to_vec())
     }
 
@@ -138,7 +143,13 @@ impl ContributorIdentity {
         size: Option<i64>,
         epoch: i32,
     ) -> Result<String> {
-        let payload = format!("{}:{}:{}:{}", info_hash, name.unwrap_or(""), size.unwrap_or(0), epoch);
+        let payload = format!(
+            "{}:{}:{}:{}",
+            info_hash,
+            name.unwrap_or(""),
+            size.unwrap_or(0),
+            epoch
+        );
         let sig = self.sign(payload.as_bytes())?;
         Ok(BASE64.encode(sig))
     }
@@ -158,7 +169,10 @@ impl ContributorIdentity {
 
     fn save_to_file(&self) -> Result<()> {
         std::fs::create_dir_all(&self.data_dir)?;
-        let sk = self.signing_key.as_ref().ok_or(IdentityError::NotInitialized)?;
+        let sk = self
+            .signing_key
+            .as_ref()
+            .ok_or(IdentityError::NotInitialized)?;
         std::fs::write(self.key_file(), sk.to_bytes())?;
         Ok(())
     }
@@ -221,7 +235,13 @@ pub fn verify_delta_signature(
     size: Option<i64>,
     epoch: i32,
 ) -> bool {
-    let payload = format!("{}:{}:{}:{}", info_hash, name.unwrap_or(""), size.unwrap_or(0), epoch);
+    let payload = format!(
+        "{}:{}:{}:{}",
+        info_hash,
+        name.unwrap_or(""),
+        size.unwrap_or(0),
+        epoch
+    );
     verify_signature(public_key_b64, signature_b64, payload.as_bytes())
 }
 
@@ -313,7 +333,10 @@ impl BanList {
         if let Some(parent) = self.ban_file.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
-        let _ = std::fs::write(&self.ban_file, serde_json::to_string_pretty(&ban_file).unwrap_or_default());
+        let _ = std::fs::write(
+            &self.ban_file,
+            serde_json::to_string_pretty(&ban_file).unwrap_or_default(),
+        );
     }
 }
 

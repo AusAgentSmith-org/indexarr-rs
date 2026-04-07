@@ -171,8 +171,12 @@ impl DhtEngine {
                 break;
             }
 
-            let Ok(hash_bytes) = hex::decode(hash_hex) else { continue };
-            if hash_bytes.len() != 20 { continue; }
+            let Ok(hash_bytes) = hex::decode(hash_hex) else {
+                continue;
+            };
+            if hash_bytes.len() != 20 {
+                continue;
+            }
 
             let mut id_bytes = [0u8; 20];
             id_bytes.copy_from_slice(&hash_bytes);

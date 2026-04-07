@@ -49,10 +49,18 @@ pub struct SearchParams {
     facets: bool,
 }
 
-fn default_sort() -> String { "relevance".into() }
-fn default_order() -> String { "desc".into() }
-fn default_limit() -> i64 { 50 }
-fn default_true() -> bool { true }
+fn default_sort() -> String {
+    "relevance".into()
+}
+fn default_order() -> String {
+    "desc".into()
+}
+fn default_limit() -> i64 {
+    50
+}
+fn default_true() -> bool {
+    true
+}
 
 #[derive(Debug, Serialize)]
 pub struct SearchResultItem {

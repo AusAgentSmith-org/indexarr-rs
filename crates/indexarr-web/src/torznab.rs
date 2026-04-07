@@ -36,8 +36,12 @@ pub struct TorznabParams {
     offset: i64,
 }
 
-fn default_caps() -> String { "caps".into() }
-fn default_limit() -> i64 { 50 }
+fn default_caps() -> String {
+    "caps".into()
+}
+fn default_limit() -> i64 {
+    50
+}
 
 fn xml_response(xml: &str) -> Response {
     (
@@ -68,23 +72,36 @@ fn caps_xml() -> String {
     xml.push_str("  <categories>\n");
 
     let parents: &[(i32, &str)] = &[
-        (1000, "Console"), (2000, "Movies"), (3000, "Audio"),
-        (4000, "PC"), (5000, "TV"), (6000, "XXX"),
-        (7000, "Books"), (8000, "Other"),
+        (1000, "Console"),
+        (2000, "Movies"),
+        (3000, "Audio"),
+        (4000, "PC"),
+        (5000, "TV"),
+        (6000, "XXX"),
+        (7000, "Books"),
+        (8000, "Other"),
     ];
     let subcats: &[(i32, &str, i32)] = &[
-        (2030, "Movies/SD", 2000), (2040, "Movies/HD", 2000),
-        (2045, "Movies/UHD", 2000), (2050, "Movies/BluRay", 2000),
+        (2030, "Movies/SD", 2000),
+        (2040, "Movies/HD", 2000),
+        (2045, "Movies/UHD", 2000),
+        (2050, "Movies/BluRay", 2000),
         (2060, "Movies/3D", 2000),
-        (5030, "TV/SD", 5000), (5040, "TV/HD", 5000),
-        (5045, "TV/UHD", 5000), (5070, "TV/Anime", 5000),
-        (3010, "Audio/Lossy", 3000), (3040, "Audio/Lossless", 3000),
+        (5030, "TV/SD", 5000),
+        (5040, "TV/HD", 5000),
+        (5045, "TV/UHD", 5000),
+        (5070, "TV/Anime", 5000),
+        (3010, "Audio/Lossy", 3000),
+        (3040, "Audio/Lossless", 3000),
         (3030, "Audio/Audiobook", 3000),
-        (4050, "PC/Games", 4000), (4010, "PC/Software", 4000),
+        (4050, "PC/Games", 4000),
+        (4010, "PC/Software", 4000),
         (4030, "PC/Mac", 4000),
-        (1080, "Console/PS", 1000), (1010, "Console/Xbox", 1000),
+        (1080, "Console/PS", 1000),
+        (1010, "Console/Xbox", 1000),
         (1030, "Console/Switch", 1000),
-        (7010, "Books/Ebook", 7000), (7020, "Books/Comics", 7000),
+        (7010, "Books/Ebook", 7000),
+        (7020, "Books/Comics", 7000),
     ];
 
     for (id, name) in parents {
@@ -115,7 +132,10 @@ async fn torznab_api(
         return xml_response(&caps_xml());
     }
 
-    if !matches!(params.t.as_str(), "search" | "tvsearch" | "movie" | "music" | "book") {
+    if !matches!(
+        params.t.as_str(),
+        "search" | "tvsearch" | "movie" | "music" | "book"
+    ) {
         return error_response(202, &format!("No such function: {}", params.t));
     }
 
@@ -144,7 +164,10 @@ async fn do_search(state: &AppState, params: &TorznabParams) -> Result<String, s
     // Text search
     if !params.q.is_empty() {
         param_idx += 1;
-        conditions.push(format!("t.search_vector @@ plainto_tsquery('english', ${})", param_idx));
+        conditions.push(format!(
+            "t.search_vector @@ plainto_tsquery('english', ${})",
+            param_idx
+        ));
         bind_strings.push(params.q.clone());
     }
 
@@ -223,14 +246,21 @@ async fn do_search(state: &AppState, params: &TorznabParams) -> Result<String, s
     let rows = query.fetch_all(pool).await?;
 
     // Build RSS XML
-    let mut xml = String::from("<rss version=\"2.0\" xmlns:torznab=\"http://torznab.com/schemas/2015/feed\">\n<channel>\n");
+    let mut xml = String::from(
+        "<rss version=\"2.0\" xmlns:torznab=\"http://torznab.com/schemas/2015/feed\">\n<channel>\n",
+    );
     xml.push_str("  <title>Indexarr</title>\n");
     xml.push_str("  <description>Indexarr Torznab Feed</description>\n");
-    xml.push_str(&format!("  <response offset=\"0\" total=\"{}\"/>\n", rows.len()));
+    xml.push_str(&format!(
+        "  <response offset=\"0\" total=\"{}\"/>\n",
+        rows.len()
+    ));
 
     for row in &rows {
         let info_hash: String = row.get("info_hash");
-        let name: String = row.get::<Option<String>, _>("name").unwrap_or_else(|| info_hash.clone());
+        let name: String = row
+            .get::<Option<String>, _>("name")
+            .unwrap_or_else(|| info_hash.clone());
         let size: i64 = row.get::<Option<i64>, _>("size").unwrap_or(0);
         let seed_count: i32 = row.get::<Option<i32>, _>("seed_count").unwrap_or(0);
         let peer_count: i32 = row.get::<Option<i32>, _>("peer_count").unwrap_or(0);
@@ -282,37 +312,65 @@ async fn do_search(state: &AppState, params: &TorznabParams) -> Result<String, s
 
         // Torznab attributes
         let ns = "torznab";
-        xml.push_str(&format!("    <{ns}:attr name=\"category\" value=\"{cat_id}\"/>\n"));
-        xml.push_str(&format!("    <{ns}:attr name=\"size\" value=\"{size}\"/>\n"));
-        xml.push_str(&format!("    <{ns}:attr name=\"seeders\" value=\"{seed_count}\"/>\n"));
-        xml.push_str(&format!("    <{ns}:attr name=\"peers\" value=\"{peer_count}\"/>\n"));
-        xml.push_str(&format!("    <{ns}:attr name=\"infohash\" value=\"{info_hash}\"/>\n"));
-        xml.push_str(&format!("    <{ns}:attr name=\"magneturl\" value=\"{magnet}\"/>\n"));
+        xml.push_str(&format!(
+            "    <{ns}:attr name=\"category\" value=\"{cat_id}\"/>\n"
+        ));
+        xml.push_str(&format!(
+            "    <{ns}:attr name=\"size\" value=\"{size}\"/>\n"
+        ));
+        xml.push_str(&format!(
+            "    <{ns}:attr name=\"seeders\" value=\"{seed_count}\"/>\n"
+        ));
+        xml.push_str(&format!(
+            "    <{ns}:attr name=\"peers\" value=\"{peer_count}\"/>\n"
+        ));
+        xml.push_str(&format!(
+            "    <{ns}:attr name=\"infohash\" value=\"{info_hash}\"/>\n"
+        ));
+        xml.push_str(&format!(
+            "    <{ns}:attr name=\"magneturl\" value=\"{magnet}\"/>\n"
+        ));
 
         if let Some(ref imdb) = row.get::<Option<String>, _>("imdb_id") {
             let imdb_num = imdb.replace("tt", "");
-            xml.push_str(&format!("    <{ns}:attr name=\"imdb\" value=\"{imdb_num}\"/>\n"));
+            xml.push_str(&format!(
+                "    <{ns}:attr name=\"imdb\" value=\"{imdb_num}\"/>\n"
+            ));
         }
         if let Some(tmdb) = row.get::<Option<i32>, _>("tmdb_id") {
-            xml.push_str(&format!("    <{ns}:attr name=\"tmdbid\" value=\"{tmdb}\"/>\n"));
+            xml.push_str(&format!(
+                "    <{ns}:attr name=\"tmdbid\" value=\"{tmdb}\"/>\n"
+            ));
         }
         if let Some(season) = row.get::<Option<i32>, _>("season") {
-            xml.push_str(&format!("    <{ns}:attr name=\"season\" value=\"{season}\"/>\n"));
+            xml.push_str(&format!(
+                "    <{ns}:attr name=\"season\" value=\"{season}\"/>\n"
+            ));
         }
         if let Some(episode) = row.get::<Option<i32>, _>("episode") {
-            xml.push_str(&format!("    <{ns}:attr name=\"episode\" value=\"{episode}\"/>\n"));
+            xml.push_str(&format!(
+                "    <{ns}:attr name=\"episode\" value=\"{episode}\"/>\n"
+            ));
         }
         if let Some(year) = row.get::<Option<i32>, _>("year") {
-            xml.push_str(&format!("    <{ns}:attr name=\"year\" value=\"{year}\"/>\n"));
+            xml.push_str(&format!(
+                "    <{ns}:attr name=\"year\" value=\"{year}\"/>\n"
+            ));
         }
         if let Some(ref res) = resolution {
-            xml.push_str(&format!("    <{ns}:attr name=\"resolution\" value=\"{res}\"/>\n"));
+            xml.push_str(&format!(
+                "    <{ns}:attr name=\"resolution\" value=\"{res}\"/>\n"
+            ));
         }
         if let Some(ref codec) = row.get::<Option<String>, _>("codec") {
-            xml.push_str(&format!("    <{ns}:attr name=\"video\" value=\"{codec}\"/>\n"));
+            xml.push_str(&format!(
+                "    <{ns}:attr name=\"video\" value=\"{codec}\"/>\n"
+            ));
         }
         if let Some(ref audio) = row.get::<Option<String>, _>("audio_codec") {
-            xml.push_str(&format!("    <{ns}:attr name=\"audio\" value=\"{audio}\"/>\n"));
+            xml.push_str(&format!(
+                "    <{ns}:attr name=\"audio\" value=\"{audio}\"/>\n"
+            ));
         }
 
         xml.push_str("  </item>\n");
@@ -323,6 +381,5 @@ async fn do_search(state: &AppState, params: &TorznabParams) -> Result<String, s
 }
 
 pub fn router(_state: Arc<AppState>) -> Router<Arc<AppState>> {
-    Router::new()
-        .route("/", get(torznab_api))
+    Router::new().route("/", get(torznab_api))
 }

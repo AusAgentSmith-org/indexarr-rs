@@ -5,7 +5,7 @@ use chrono::Utc;
 use flate2::Compression;
 use flate2::write::GzEncoder;
 use indexarr_identity::ContributorIdentity;
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Row};
 
 /// Manifest describing available deltas for a peer.
@@ -148,7 +148,10 @@ impl DeltaExporter {
         let content_hash = hex::encode(hasher.finalize());
 
         // Mark exported torrents with sequence
-        let hashes: Vec<String> = rows.iter().map(|r| r.get::<String, _>("info_hash")).collect();
+        let hashes: Vec<String> = rows
+            .iter()
+            .map(|r| r.get::<String, _>("info_hash"))
+            .collect();
         for chunk in hashes.chunks(500) {
             sqlx::query("UPDATE torrents SET sync_sequence = $1 WHERE info_hash = ANY($2)")
                 .bind(sequence)
@@ -165,11 +168,7 @@ impl DeltaExporter {
     }
 
     /// Build a manifest of all available deltas.
-    pub fn build_manifest(
-        &self,
-        contributor_id: &str,
-        epoch: i32,
-    ) -> Manifest {
+    pub fn build_manifest(&self, contributor_id: &str, epoch: i32) -> Manifest {
         let sequence = self.load_sequence();
         let sync_dir = self.data_dir.join("sync");
 
@@ -184,7 +183,8 @@ impl DeltaExporter {
                             if let Ok(data) = std::fs::read(&path) {
                                 let hash = hex::encode(Sha256::digest(&data));
                                 deltas.push(DeltaInfo {
-                                    sequence: name.strip_prefix("delta_")
+                                    sequence: name
+                                        .strip_prefix("delta_")
                                         .and_then(|s| s.strip_suffix(".ndjson"))
                                         .and_then(|s| s.parse().ok())
                                         .unwrap_or(0),
@@ -225,7 +225,9 @@ impl DeltaExporter {
 }
 
 /// Read an NDJSON delta file (gzipped) and return parsed records.
-pub fn read_delta(path: &Path) -> Result<Vec<serde_json::Value>, Box<dyn std::error::Error + Send + Sync>> {
+pub fn read_delta(
+    path: &Path,
+) -> Result<Vec<serde_json::Value>, Box<dyn std::error::Error + Send + Sync>> {
     let file = std::fs::File::open(path)?;
     let decoder = flate2::read::GzDecoder::new(file);
     let reader = std::io::BufReader::new(decoder);
@@ -234,7 +236,9 @@ pub fn read_delta(path: &Path) -> Result<Vec<serde_json::Value>, Box<dyn std::er
     let mut records = Vec::new();
     for line in reader.lines() {
         let line = line?;
-        if line.is_empty() { continue; }
+        if line.is_empty() {
+            continue;
+        }
         let record: serde_json::Value = serde_json::from_str(&line)?;
         records.push(record);
     }

@@ -18,7 +18,9 @@ pub struct QueueParams {
     offset: i64,
 }
 
-fn default_limit() -> i64 { 50 }
+fn default_limit() -> i64 {
+    50
+}
 
 #[derive(Debug, Serialize)]
 pub struct QueueItem {
@@ -45,17 +47,15 @@ async fn get_queue(
     let limit = params.limit.clamp(1, 100);
     let offset = params.offset.max(0);
 
-    let total: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM torrents WHERE resolved_at IS NULL"
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM torrents WHERE resolved_at IS NULL")
+        .fetch_one(pool)
+        .await
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let rows = sqlx::query(
         "SELECT info_hash, source, discovered_at, resolve_attempts, observations \
          FROM torrents WHERE resolved_at IS NULL \
-         ORDER BY discovered_at DESC LIMIT $1 OFFSET $2"
+         ORDER BY discovered_at DESC LIMIT $1 OFFSET $2",
     )
     .bind(limit)
     .bind(offset)
@@ -63,15 +63,25 @@ async fn get_queue(
     .await
     .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let items: Vec<QueueItem> = rows.iter().map(|r| QueueItem {
-        info_hash: r.get("info_hash"),
-        source: r.get("source"),
-        discovered_at: r.get::<Option<DateTime<Utc>>, _>("discovered_at").map(|d| d.to_rfc3339()),
-        resolve_attempts: r.get("resolve_attempts"),
-        observations: r.get("observations"),
-    }).collect();
+    let items: Vec<QueueItem> = rows
+        .iter()
+        .map(|r| QueueItem {
+            info_hash: r.get("info_hash"),
+            source: r.get("source"),
+            discovered_at: r
+                .get::<Option<DateTime<Utc>>, _>("discovered_at")
+                .map(|d| d.to_rfc3339()),
+            resolve_attempts: r.get("resolve_attempts"),
+            observations: r.get("observations"),
+        })
+        .collect();
 
-    Ok(Json(QueueResponse { results: items, total, offset, limit }))
+    Ok(Json(QueueResponse {
+        results: items,
+        total,
+        offset,
+        limit,
+    }))
 }
 
 pub fn router() -> Router<Arc<AppState>> {

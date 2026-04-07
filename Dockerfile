@@ -18,9 +18,9 @@ FROM rust:1-bookworm AS rust-builder
 WORKDIR /build
 
 # Configure git for private dependencies (persists in /root/.gitconfig)
-ARG GH_PAT=""
+ARG GIT_AUTH_TOKEN=""
 ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
-RUN git config --global url."https://${GH_PAT}@github.com/".insteadOf "https://github.com/"
+RUN git config --global url."http://x-access-token:${GIT_AUTH_TOKEN}@100.92.54.45:3002/".insteadOf "http://100.92.54.45:3002/"
 
 # Cache dependencies by building a dummy project first
 COPY Cargo.toml Cargo.lock ./

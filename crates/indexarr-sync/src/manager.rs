@@ -109,31 +109,47 @@ impl SyncManager {
 
     async fn export_loop(&self, cancel: CancellationToken) {
         loop {
-            if cancel.is_cancelled() { break; }
+            if cancel.is_cancelled() {
+                break;
+            }
 
             let epoch = epoch::get_current_epoch(&self.settings.data_dir);
             // Lock identity briefly, then release before await
             let identity = self.identity.read().await;
-            let export_result = self.exporter.export_delta(&self.pool, &identity, epoch).await;
+            let export_result = self
+                .exporter
+                .export_delta(&self.pool, &identity, epoch)
+                .await;
             drop(identity);
 
             match export_result {
                 Ok(Some((_path, hash, count))) => {
-                    if let Ok(mut seq) = self.export_sequence.lock() { *seq += 1; }
-                    self.log_activity("export", &format!("exported {count} records ({hash})"), None);
+                    if let Ok(mut seq) = self.export_sequence.lock() {
+                        *seq += 1;
+                    }
+                    self.log_activity(
+                        "export",
+                        &format!("exported {count} records ({hash})"),
+                        None,
+                    );
                 }
                 Ok(None) => {}
                 Err(e) => {
                     self.log_activity("error", &format!("export failed: {e}"), None);
                 }
             }
-            tokio::time::sleep(std::time::Duration::from_secs(self.settings.export_interval)).await;
+            tokio::time::sleep(std::time::Duration::from_secs(
+                self.settings.export_interval,
+            ))
+            .await;
         }
     }
 
     async fn discovery_loop(&self, cancel: CancellationToken) {
         loop {
-            if cancel.is_cancelled() { break; }
+            if cancel.is_cancelled() {
+                break;
+            }
 
             // PEX with known peers
             let urls: Vec<String> = {
@@ -143,16 +159,26 @@ impl SyncManager {
 
             let client = build_http_client(self.settings.verify_tls);
             for url in &urls {
-                if cancel.is_cancelled() { break; }
+                if cancel.is_cancelled() {
+                    break;
+                }
                 let peers_url = format!("{url}/api/v1/sync/peers");
-                if let Ok(resp) = client.get(&peers_url).timeout(std::time::Duration::from_secs(10)).send().await {
+                if let Ok(resp) = client
+                    .get(&peers_url)
+                    .timeout(std::time::Duration::from_secs(10))
+                    .send()
+                    .await
+                {
                     if resp.status().is_success() {
                         if let Ok(body) = resp.json::<serde_json::Value>().await {
                             if let Some(peers) = body.get("peers").and_then(|v| v.as_array()) {
                                 let mut pt = self.peer_table.write().await;
                                 for peer in peers {
                                     let pu = peer.get("url").and_then(|v| v.as_str()).unwrap_or("");
-                                    let pi = peer.get("contributor_id").and_then(|v| v.as_str()).unwrap_or("");
+                                    let pi = peer
+                                        .get("contributor_id")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("");
                                     if !pu.is_empty() && !pi.is_empty() {
                                         pt.add_peer(pi, pu, "pex");
                                     }
@@ -170,10 +196,17 @@ impl SyncManager {
             {
                 let pt = self.peer_table.read().await;
                 let _ = pt.persist(&self.pool).await;
-                self.log_activity("discovery", &format!("{} peers ({} healthy)", pt.peer_count(), pt.healthy_count()), None);
+                self.log_activity(
+                    "discovery",
+                    &format!("{} peers ({} healthy)", pt.peer_count(), pt.healthy_count()),
+                    None,
+                );
             }
 
-            tokio::time::sleep(std::time::Duration::from_secs(self.settings.discovery_interval)).await;
+            tokio::time::sleep(std::time::Duration::from_secs(
+                self.settings.discovery_interval,
+            ))
+            .await;
         }
     }
 
@@ -181,41 +214,63 @@ impl SyncManager {
         tokio::time::sleep(std::time::Duration::from_secs(30)).await;
 
         loop {
-            if cancel.is_cancelled() { break; }
+            if cancel.is_cancelled() {
+                break;
+            }
 
             let targets = {
                 let pt = self.peer_table.read().await;
                 pt.get_gossip_targets(self.settings.gossip_fanout as usize)
-                    .into_iter().cloned().collect::<Vec<_>>()
+                    .into_iter()
+                    .cloned()
+                    .collect::<Vec<_>>()
             };
 
             if targets.is_empty() {
-                tokio::time::sleep(std::time::Duration::from_secs(self.settings.import_interval)).await;
+                tokio::time::sleep(std::time::Duration::from_secs(
+                    self.settings.import_interval,
+                ))
+                .await;
                 continue;
             }
 
             let client = build_http_client(self.settings.verify_tls);
 
             for peer in &targets {
-                if cancel.is_cancelled() { break; }
+                if cancel.is_cancelled() {
+                    break;
+                }
                 match self.gossip_with_peer(&client, peer).await {
                     Ok(merged) => {
                         let mut pt = self.peer_table.write().await;
                         pt.update_health(&peer.peer_id, true);
-                        if merged > 0 { pt.apply_contribution_bonus(&peer.peer_id, merged); }
+                        if merged > 0 {
+                            pt.apply_contribution_bonus(&peer.peer_id, merged);
+                        }
                         drop(pt);
-                        self.log_activity("gossip", &format!("merged {merged} from {}", peer.peer_id), Some(&peer.peer_id));
+                        self.log_activity(
+                            "gossip",
+                            &format!("merged {merged} from {}", peer.peer_id),
+                            Some(&peer.peer_id),
+                        );
                     }
                     Err(e) => {
                         let mut pt = self.peer_table.write().await;
                         pt.update_health(&peer.peer_id, false);
                         drop(pt);
-                        self.log_activity("error", &format!("gossip with {} failed: {e}", peer.peer_id), Some(&peer.peer_id));
+                        self.log_activity(
+                            "error",
+                            &format!("gossip with {} failed: {e}", peer.peer_id),
+                            Some(&peer.peer_id),
+                        );
                     }
                 }
             }
 
-            tokio::time::sleep(std::time::Duration::from_secs(self.settings.import_interval)).await;
+            tokio::time::sleep(std::time::Duration::from_secs(
+                self.settings.import_interval,
+            ))
+            .await;
         }
     }
 
@@ -225,7 +280,11 @@ impl SyncManager {
         peer: &crate::discovery::PeerInfo,
     ) -> Result<u64, Box<dyn std::error::Error + Send + Sync>> {
         let manifest_url = format!("{}/api/v1/sync/manifest", peer.url);
-        let resp = client.get(&manifest_url).timeout(std::time::Duration::from_secs(15)).send().await?;
+        let resp = client
+            .get(&manifest_url)
+            .timeout(std::time::Duration::from_secs(15))
+            .send()
+            .await?;
         if !resp.status().is_success() {
             return Err(format!("manifest fetch: {}", resp.status()).into());
         }
@@ -233,29 +292,53 @@ impl SyncManager {
 
         let our_watermark = {
             let pt = self.peer_table.read().await;
-            pt.peers().find(|p| p.peer_id == peer.peer_id).map(|p| p.last_sequence).unwrap_or(0)
+            pt.peers()
+                .find(|p| p.peer_id == peer.peer_id)
+                .map(|p| p.last_sequence)
+                .unwrap_or(0)
         };
 
-        let new_deltas: Vec<_> = manifest.deltas.iter().filter(|d| d.sequence > our_watermark).collect();
-        if new_deltas.is_empty() { return Ok(0); }
+        let new_deltas: Vec<_> = manifest
+            .deltas
+            .iter()
+            .filter(|d| d.sequence > our_watermark)
+            .collect();
+        if new_deltas.is_empty() {
+            return Ok(0);
+        }
 
         let mut total_merged = 0u64;
         let mut max_seq = our_watermark;
 
         for delta_info in &new_deltas {
             let delta_url = format!("{}/api/v1/sync/delta/{}", peer.url, delta_info.content_hash);
-            let resp = client.get(&delta_url).timeout(std::time::Duration::from_secs(30)).send().await?;
-            if !resp.status().is_success() { continue; }
+            let resp = client
+                .get(&delta_url)
+                .timeout(std::time::Duration::from_secs(30))
+                .send()
+                .await?;
+            if !resp.status().is_success() {
+                continue;
+            }
 
             let data = resp.bytes().await?;
-            let temp_path = self.settings.data_dir.join("sync").join(format!("tmp_{}.ndjson.gz", delta_info.content_hash));
+            let temp_path = self
+                .settings
+                .data_dir
+                .join("sync")
+                .join(format!("tmp_{}.ndjson.gz", delta_info.content_hash));
             std::fs::write(&temp_path, &data)?;
 
             let ban_list = self.ban_list.read().await;
             let stats = merge::merge_delta(
-                &self.pool, &temp_path, &self.settings.data_dir,
-                &ban_list, &self.settings.import_categories, false,
-            ).await?;
+                &self.pool,
+                &temp_path,
+                &self.settings.data_dir,
+                &ban_list,
+                &self.settings.import_categories,
+                false,
+            )
+            .await?;
 
             total_merged += stats.inserted + stats.updated;
             max_seq = max_seq.max(delta_info.sequence);
@@ -287,7 +370,9 @@ impl SyncManager {
 
     fn log_activity(&self, event: &str, message: &str, peer_id: Option<&str>) {
         if let Ok(mut activity) = self.activity.lock() {
-            if activity.len() >= 100 { activity.pop_back(); }
+            if activity.len() >= 100 {
+                activity.pop_back();
+            }
             activity.push_front(SyncActivity {
                 timestamp: Utc::now(),
                 event: event.to_string(),
@@ -302,6 +387,8 @@ fn build_http_client(verify_tls: bool) -> reqwest::Client {
     let mut builder = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .connect_timeout(std::time::Duration::from_secs(10));
-    if !verify_tls { builder = builder.danger_accept_invalid_certs(true); }
+    if !verify_tls {
+        builder = builder.danger_accept_invalid_certs(true);
+    }
     builder.build().unwrap_or_default()
 }

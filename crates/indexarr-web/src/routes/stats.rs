@@ -46,43 +46,81 @@ async fn get_stats(
     let pool = &state.pool;
 
     let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM torrents")
-        .fetch_one(pool).await.map_err(db_err)?;
-    let resolved: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM torrents WHERE resolved_at IS NOT NULL")
-        .fetch_one(pool).await.map_err(db_err)?;
+        .fetch_one(pool)
+        .await
+        .map_err(db_err)?;
+    let resolved: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM torrents WHERE resolved_at IS NOT NULL")
+            .fetch_one(pool)
+            .await
+            .map_err(db_err)?;
     let no_peers: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM torrents WHERE no_peers IS TRUE")
-        .fetch_one(pool).await.map_err(db_err)?;
-    let dead: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM torrents WHERE resolved_at IS NULL AND no_peers IS TRUE")
-        .fetch_one(pool).await.map_err(db_err)?;
+        .fetch_one(pool)
+        .await
+        .map_err(db_err)?;
+    let dead: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM torrents WHERE resolved_at IS NULL AND no_peers IS TRUE",
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(db_err)?;
     let private: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM torrents WHERE private IS TRUE")
-        .fetch_one(pool).await.map_err(db_err)?;
+        .fetch_one(pool)
+        .await
+        .map_err(db_err)?;
     let with_nfo: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM torrents WHERE nfo IS NOT NULL")
-        .fetch_one(pool).await.map_err(db_err)?;
-    let announced_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM torrents WHERE announced_at IS NOT NULL")
-        .fetch_one(pool).await.map_err(db_err)?;
+        .fetch_one(pool)
+        .await
+        .map_err(db_err)?;
+    let announced_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM torrents WHERE announced_at IS NOT NULL")
+            .fetch_one(pool)
+            .await
+            .map_err(db_err)?;
     let pending_announce_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM torrents WHERE announced_at IS NULL AND name IS NOT NULL AND no_peers IS NOT TRUE"
     ).fetch_one(pool).await.map_err(db_err)?;
 
-    let src_rows = sqlx::query("SELECT source, COUNT(*) as cnt FROM torrents GROUP BY source ORDER BY cnt DESC")
-        .fetch_all(pool).await.map_err(db_err)?;
-    let by_source: Vec<SourceCount> = src_rows.iter().map(|r| SourceCount {
-        source: r.get("source"),
-        count: r.get("cnt"),
-    }).collect();
+    let src_rows = sqlx::query(
+        "SELECT source, COUNT(*) as cnt FROM torrents GROUP BY source ORDER BY cnt DESC",
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(db_err)?;
+    let by_source: Vec<SourceCount> = src_rows
+        .iter()
+        .map(|r| SourceCount {
+            source: r.get("source"),
+            count: r.get("cnt"),
+        })
+        .collect();
 
     let ct_rows = sqlx::query("SELECT content_type, COUNT(*) as cnt FROM torrent_content WHERE content_type IS NOT NULL GROUP BY content_type ORDER BY cnt DESC")
         .fetch_all(pool).await.map_err(db_err)?;
-    let by_content_type: Vec<ContentTypeCount> = ct_rows.iter().map(|r| ContentTypeCount {
-        content_type: r.get("content_type"),
-        count: r.get("cnt"),
-    }).collect();
+    let by_content_type: Vec<ContentTypeCount> = ct_rows
+        .iter()
+        .map(|r| ContentTypeCount {
+            content_type: r.get("content_type"),
+            count: r.get("cnt"),
+        })
+        .collect();
 
     let unresolved = total - resolved;
     let pending = unresolved - dead;
 
     Ok(Json(StatsResponse {
-        total, resolved, unresolved, pending, dead, no_peers, private, with_nfo,
-        announced_count, pending_announce_count, by_source, by_content_type,
+        total,
+        resolved,
+        unresolved,
+        pending,
+        dead,
+        no_peers,
+        private,
+        with_nfo,
+        announced_count,
+        pending_announce_count,
+        by_source,
+        by_content_type,
     }))
 }
 
@@ -96,8 +134,12 @@ pub struct TrendingParams {
     limit: i64,
 }
 
-fn default_hours() -> i64 { 12 }
-fn default_trend_limit() -> i64 { 10 }
+fn default_hours() -> i64 {
+    12
+}
+fn default_trend_limit() -> i64 {
+    10
+}
 
 #[derive(Debug, Serialize)]
 pub struct TrendingItem {
@@ -127,15 +169,20 @@ async fn get_trending(
     .await
     .map_err(db_err)?;
 
-    let items: Vec<TrendingItem> = rows.iter().map(|r| TrendingItem {
-        info_hash: r.get("info_hash"),
-        name: r.get::<Option<String>, _>("name").unwrap_or_default(),
-        size: r.get::<Option<i64>, _>("size").unwrap_or(0),
-        content_type: r.get("content_type"),
-        seed_count: r.get::<Option<i32>, _>("seed_count").unwrap_or(0),
-        peer_count: r.get::<Option<i32>, _>("peer_count").unwrap_or(0),
-        resolved_at: r.get::<Option<chrono::DateTime<Utc>>, _>("resolved_at").map(|d| d.to_rfc3339()),
-    }).collect();
+    let items: Vec<TrendingItem> = rows
+        .iter()
+        .map(|r| TrendingItem {
+            info_hash: r.get("info_hash"),
+            name: r.get::<Option<String>, _>("name").unwrap_or_default(),
+            size: r.get::<Option<i64>, _>("size").unwrap_or(0),
+            content_type: r.get("content_type"),
+            seed_count: r.get::<Option<i32>, _>("seed_count").unwrap_or(0),
+            peer_count: r.get::<Option<i32>, _>("peer_count").unwrap_or(0),
+            resolved_at: r
+                .get::<Option<chrono::DateTime<Utc>>, _>("resolved_at")
+                .map(|d| d.to_rfc3339()),
+        })
+        .collect();
 
     Ok(Json(serde_json::json!({ "results": items })))
 }
@@ -150,29 +197,32 @@ async fn get_recent_comments(
     let rows = sqlx::query(
         "SELECT c.id, c.info_hash, t.name AS torrent_name, c.nickname, c.body, c.created_at \
          FROM torrent_comments c JOIN torrents t ON t.info_hash = c.info_hash \
-         WHERE c.deleted = FALSE ORDER BY c.created_at DESC LIMIT $1"
+         WHERE c.deleted = FALSE ORDER BY c.created_at DESC LIMIT $1",
     )
     .bind(limit)
     .fetch_all(&state.pool)
     .await
     .map_err(db_err)?;
 
-    let comments: Vec<serde_json::Value> = rows.iter().map(|r| {
-        let body: String = r.get("body");
-        let body_trimmed = if body.len() > 200 {
-            format!("{}...", &body[..200])
-        } else {
-            body
-        };
-        serde_json::json!({
-            "id": r.get::<i32, _>("id"),
-            "info_hash": r.get::<String, _>("info_hash"),
-            "torrent_name": r.get::<Option<String>, _>("torrent_name"),
-            "nickname": r.get::<String, _>("nickname"),
-            "body": body_trimmed,
-            "created_at": r.get::<chrono::DateTime<Utc>, _>("created_at").to_rfc3339(),
+    let comments: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            let body: String = r.get("body");
+            let body_trimmed = if body.len() > 200 {
+                format!("{}...", &body[..200])
+            } else {
+                body
+            };
+            serde_json::json!({
+                "id": r.get::<i32, _>("id"),
+                "info_hash": r.get::<String, _>("info_hash"),
+                "torrent_name": r.get::<Option<String>, _>("torrent_name"),
+                "nickname": r.get::<String, _>("nickname"),
+                "body": body_trimmed,
+                "created_at": r.get::<chrono::DateTime<Utc>, _>("created_at").to_rfc3339(),
+            })
         })
-    }).collect();
+        .collect();
 
     Ok(Json(serde_json::json!({ "comments": comments })))
 }
@@ -184,9 +234,14 @@ async fn get_dht_status(
 ) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, String)> {
     let pool = &state.pool;
     let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM torrents")
-        .fetch_one(pool).await.map_err(db_err)?;
-    let resolved: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM torrents WHERE resolved_at IS NOT NULL")
-        .fetch_one(pool).await.map_err(db_err)?;
+        .fetch_one(pool)
+        .await
+        .map_err(db_err)?;
+    let resolved: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM torrents WHERE resolved_at IS NOT NULL")
+            .fetch_one(pool)
+            .await
+            .map_err(db_err)?;
 
     Ok(Json(serde_json::json!({
         "dht_running": false,
@@ -251,7 +306,7 @@ async fn get_recently_announced(
          c.content_type, c.resolution \
          FROM torrents t LEFT JOIN torrent_content c ON t.info_hash = c.info_hash \
          WHERE t.announced_at IS NOT NULL \
-         ORDER BY t.announced_at DESC LIMIT $1"
+         ORDER BY t.announced_at DESC LIMIT $1",
     )
     .bind(limit)
     .fetch_all(&state.pool)
@@ -286,10 +341,15 @@ async fn get_scraper_status(
     .await
     .map_err(db_err)?;
 
-    let source_counts: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "source": r.get::<String, _>("source"),
-        "count": r.get::<i64, _>("cnt"),
-    })).collect();
+    let source_counts: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "source": r.get::<String, _>("source"),
+                "count": r.get::<i64, _>("cnt"),
+            })
+        })
+        .collect();
 
     Ok(Json(serde_json::json!({
         "running": false,
@@ -304,8 +364,11 @@ async fn get_announcer_status(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, String)> {
     let pool = &state.pool;
-    let announced_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM torrents WHERE announced_at IS NOT NULL")
-        .fetch_one(pool).await.map_err(db_err)?;
+    let announced_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM torrents WHERE announced_at IS NOT NULL")
+            .fetch_one(pool)
+            .await
+            .map_err(db_err)?;
     let pending: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM torrents WHERE announced_at IS NULL AND name IS NOT NULL AND no_peers IS NOT TRUE"
     ).fetch_one(pool).await.map_err(db_err)?;

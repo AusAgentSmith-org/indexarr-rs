@@ -25,7 +25,7 @@ async fn add_tags(
         for tag in &body.tags {
             let result = sqlx::query(
                 "INSERT INTO torrent_tags (info_hash, tag, source) VALUES ($1, $2, 'user') \
-                 ON CONFLICT (info_hash, tag) DO NOTHING"
+                 ON CONFLICT (info_hash, tag) DO NOTHING",
             )
             .bind(hash)
             .bind(tag)
@@ -45,14 +45,12 @@ async fn remove_tags(
     let mut affected = 0i64;
     for hash in &body.info_hashes {
         for tag in &body.tags {
-            let result = sqlx::query(
-                "DELETE FROM torrent_tags WHERE info_hash = $1 AND tag = $2"
-            )
-            .bind(hash)
-            .bind(tag)
-            .execute(&state.pool)
-            .await
-            .map_err(db_err)?;
+            let result = sqlx::query("DELETE FROM torrent_tags WHERE info_hash = $1 AND tag = $2")
+                .bind(hash)
+                .bind(tag)
+                .execute(&state.pool)
+                .await
+                .map_err(db_err)?;
             affected += result.rows_affected() as i64;
         }
     }
@@ -76,7 +74,9 @@ async fn delete_torrents(
         .execute(&state.pool)
         .await
         .map_err(db_err)?;
-    Ok(Json(serde_json::json!({ "affected": result.rows_affected() })))
+    Ok(Json(
+        serde_json::json!({ "affected": result.rows_affected() }),
+    ))
 }
 
 // --- Bulk Import ---
@@ -98,7 +98,9 @@ pub struct ImportFile {
     size: i64,
 }
 
-fn default_import_source() -> String { "import".to_string() }
+fn default_import_source() -> String {
+    "import".to_string()
+}
 
 async fn import_torrents(
     State(state): State<Arc<AppState>>,
@@ -116,9 +118,12 @@ async fn import_torrents(
         }
 
         // Check duplicate
-        let exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM torrents WHERE info_hash = $1)"
-        ).bind(&hash).fetch_one(pool).await.map_err(db_err)?;
+        let exists: bool =
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM torrents WHERE info_hash = $1)")
+                .bind(&hash)
+                .fetch_one(pool)
+                .await
+                .map_err(db_err)?;
 
         if exists {
             skipped += 1;
@@ -129,7 +134,7 @@ async fn import_torrents(
         sqlx::query(
             "INSERT INTO torrents (info_hash, name, size, source, resolved_at) \
              VALUES ($1, $2, $3, $4, CASE WHEN $2 IS NOT NULL THEN NOW() ELSE NULL END) \
-             ON CONFLICT (info_hash) DO NOTHING"
+             ON CONFLICT (info_hash) DO NOTHING",
         )
         .bind(&hash)
         .bind(&item.name)
@@ -157,7 +162,9 @@ async fn import_torrents(
         imported += 1;
     }
 
-    Ok(Json(serde_json::json!({ "imported": imported, "skipped": skipped })))
+    Ok(Json(
+        serde_json::json!({ "imported": imported, "skipped": skipped }),
+    ))
 }
 
 fn db_err(e: sqlx::Error) -> (axum::http::StatusCode, String) {

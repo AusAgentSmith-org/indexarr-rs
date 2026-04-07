@@ -46,8 +46,9 @@ fn add_spa_fallback(app: Router, _state: Arc<AppState>) -> Router {
     let ui_dist = find_ui_dist();
     if let Some(dist_path) = ui_dist {
         tracing::info!(path = %dist_path.display(), "serving Vue SPA from ui/dist");
-        let serve_dir = tower_http::services::ServeDir::new(&dist_path)
-            .fallback(tower_http::services::ServeFile::new(dist_path.join("index.html")));
+        let serve_dir = tower_http::services::ServeDir::new(&dist_path).fallback(
+            tower_http::services::ServeFile::new(dist_path.join("index.html")),
+        );
         app.fallback_service(serve_dir)
     } else {
         tracing::warn!("ui/dist not found — SPA not available");
@@ -57,10 +58,7 @@ fn add_spa_fallback(app: Router, _state: Arc<AppState>) -> Router {
 
 fn find_ui_dist() -> Option<PathBuf> {
     // Check relative to binary
-    let candidates = [
-        PathBuf::from("ui/dist"),
-        PathBuf::from("/app/ui/dist"),
-    ];
+    let candidates = [PathBuf::from("ui/dist"), PathBuf::from("/app/ui/dist")];
     for p in &candidates {
         if p.is_dir() {
             return Some(p.clone());

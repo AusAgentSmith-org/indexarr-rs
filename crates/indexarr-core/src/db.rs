@@ -1,5 +1,5 @@
-use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
+use sqlx::postgres::PgPoolOptions;
 
 use crate::config::Settings;
 
@@ -22,7 +22,9 @@ async fn run_migrations(pool: &PgPool) -> Result<(), sqlx::Error> {
     sqlx::raw_sql(SCHEMA_SQL).execute(pool).await?;
 
     // Set up full-text search trigger (PostgreSQL only)
-    sqlx::raw_sql(SEARCH_VECTOR_TRIGGER_SQL).execute(pool).await?;
+    sqlx::raw_sql(SEARCH_VECTOR_TRIGGER_SQL)
+        .execute(pool)
+        .await?;
 
     // Backfill any rows missing search_vector
     let result = sqlx::raw_sql(BACKFILL_SEARCH_VECTOR_SQL)

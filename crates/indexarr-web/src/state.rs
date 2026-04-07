@@ -1,5 +1,5 @@
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
 use indexarr_core::config::Settings;
@@ -20,7 +20,12 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(pool: PgPool, settings: Settings, identity: ContributorIdentity, log_capture: Arc<LogCapture>) -> Arc<Self> {
+    pub fn new(
+        pool: PgPool,
+        settings: Settings,
+        identity: ContributorIdentity,
+        log_capture: Arc<LogCapture>,
+    ) -> Arc<Self> {
         Arc::new(Self {
             pool,
             settings,

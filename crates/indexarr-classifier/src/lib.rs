@@ -31,11 +31,7 @@ pub struct FileInfo {
 }
 
 /// Classify a torrent based on parsed name and file list.
-pub fn classify(
-    parsed: &ParsedTorrent,
-    files: &[FileInfo],
-    name: &str,
-) -> ClassificationResult {
+pub fn classify(parsed: &ParsedTorrent, files: &[FileInfo], name: &str) -> ClassificationResult {
     let mut result = ClassificationResult {
         content_type: "unknown".to_string(),
         confidence: 0.0,
@@ -104,9 +100,21 @@ fn detect_xxx(name: &str) -> bool {
 
 fn detect_anime(name: &str, group: Option<&str>) -> bool {
     static ANIME_GROUPS: &[&str] = &[
-        "SubsPlease", "Erai-raws", "HorribleSubs", "Judas", "Tsundere-Raws",
-        "NC-Raws", "Moozzi2", "EMBER", "ASW", "Cerberus", "SUGOI",
-        "YuiSubs", "MTBB", "LostYears", "Commie",
+        "SubsPlease",
+        "Erai-raws",
+        "HorribleSubs",
+        "Judas",
+        "Tsundere-Raws",
+        "NC-Raws",
+        "Moozzi2",
+        "EMBER",
+        "ASW",
+        "Cerberus",
+        "SUGOI",
+        "YuiSubs",
+        "MTBB",
+        "LostYears",
+        "Commie",
     ];
     if let Some(g) = group {
         if ANIME_GROUPS.iter().any(|ag| ag.eq_ignore_ascii_case(g)) {
@@ -114,8 +122,7 @@ fn detect_anime(name: &str, group: Option<&str>) -> bool {
         }
     }
     // Bracketed fansub group pattern: [GroupName]
-    static RE_FANSUB: Lazy<Regex> =
-        Lazy::new(|| Regex::new(r"^\[([^\]]+)\]").unwrap());
+    static RE_FANSUB: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\[([^\]]+)\]").unwrap());
     RE_FANSUB.is_match(name)
 }
 
@@ -138,10 +145,15 @@ fn detect_music_format(files: &[FileInfo], name: &str) -> Option<String> {
 
     // Check name for audio format hints
     let name_upper = name.to_uppercase();
-    if name_upper.contains("FLAC") || name_upper.contains("LOSSLESS") || name_upper.contains("ALAC") {
+    if name_upper.contains("FLAC") || name_upper.contains("LOSSLESS") || name_upper.contains("ALAC")
+    {
         return Some("lossless".to_string());
     }
-    if name_upper.contains("MP3") || name_upper.contains("320KBPS") || name_upper.contains("256KBPS") || name_upper.contains("V0") {
+    if name_upper.contains("MP3")
+        || name_upper.contains("320KBPS")
+        || name_upper.contains("256KBPS")
+        || name_upper.contains("V0")
+    {
         return Some("lossy".to_string());
     }
 
@@ -176,9 +188,24 @@ fn classify_content(
 ) -> (String, f64) {
     // Game group detection
     static GAME_GROUPS: &[&str] = &[
-        "CODEX", "PLAZA", "SKIDROW", "FitGirl", "DODI", "CPY", "HOODLUM",
-        "EMPRESS", "RUNE", "GOG", "TiNYiSO", "TENOKE", "DARKSiDERS",
-        "GOLDBERG", "SiMPLEX", "PROPHET", "RAZOR1911", "RELOADED",
+        "CODEX",
+        "PLAZA",
+        "SKIDROW",
+        "FitGirl",
+        "DODI",
+        "CPY",
+        "HOODLUM",
+        "EMPRESS",
+        "RUNE",
+        "GOG",
+        "TiNYiSO",
+        "TENOKE",
+        "DARKSiDERS",
+        "GOLDBERG",
+        "SiMPLEX",
+        "PROPHET",
+        "RAZOR1911",
+        "RELOADED",
     ];
 
     let group = parsed.group.as_deref().unwrap_or("");
@@ -197,9 +224,8 @@ fn classify_content(
     }
 
     // Music detection: name pattern "Artist - Title" + music descriptors
-    static RE_MUSIC: Lazy<Regex> = Lazy::new(|| {
-        Regex::new(r"(?i)^[^/\n]{2,40}\s+-\s+[^/\n]{2,}").unwrap()
-    });
+    static RE_MUSIC: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r"(?i)^[^/\n]{2,40}\s+-\s+[^/\n]{2,}").unwrap());
     static RE_MUSIC_DESC: Lazy<Regex> = Lazy::new(|| {
         Regex::new(r"(?i)\b(?:remastered|deluxe[. ]edition|EP|Single|Album|Discography|FLAC|MP3|320kbps|V0)\b").unwrap()
     });
@@ -218,14 +244,17 @@ fn classify_content(
     }
 
     // Software / version number detection
-    static RE_VERSION: Lazy<Regex> = Lazy::new(|| {
-        Regex::new(r"(?i)\bv?\d+\.\d+(?:\.\d+)+\b").unwrap()
-    });
+    static RE_VERSION: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r"(?i)\bv?\d+\.\d+(?:\.\d+)+\b").unwrap());
     static RE_SOFTWARE: Lazy<Regex> = Lazy::new(|| {
         Regex::new(r"(?i)\b(?:portable|installer|setup|crack|keygen|patch|serial|license|registration|activation|multilingual)\b").unwrap()
     });
-    if RE_SOFTWARE.is_match(name) || (RE_VERSION.is_match(name) && dominant_type.as_deref() == Some("software")) {
-        if parsed.platform.is_some() && !matches!(parsed.platform.as_deref(), Some("PC" | "macOS" | "Linux")) {
+    if RE_SOFTWARE.is_match(name)
+        || (RE_VERSION.is_match(name) && dominant_type.as_deref() == Some("software"))
+    {
+        if parsed.platform.is_some()
+            && !matches!(parsed.platform.as_deref(), Some("PC" | "macOS" | "Linux"))
+        {
             // Console platform + software keywords → game
             return ("game".to_string(), 0.7);
         }
@@ -342,6 +371,9 @@ mod tests {
     fn test_quality_score() {
         let p = make_parsed("Movie.2023.2160p.BluRay.REMUX.DV.HDR10.TrueHD.Atmos.7.1-FraMeSToR");
         let score = compute_quality_score(&p);
-        assert!(score > 10000, "4K REMUX DV score should be >10000, got {score}");
+        assert!(
+            score > 10000,
+            "4K REMUX DV score should be >10000, got {score}"
+        );
     }
 }

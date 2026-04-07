@@ -246,7 +246,11 @@ fn urlencoded(s: &str) -> String {
 fn parse_search_results(data: &serde_json::Value, media_type: &str) -> Vec<TmdbMatch> {
     data.get("results")
         .and_then(|v| v.as_array())
-        .map(|arr| arr.iter().map(|item| parse_match(item, media_type)).collect())
+        .map(|arr| {
+            arr.iter()
+                .map(|item| parse_match(item, media_type))
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -279,17 +283,33 @@ fn parse_match(item: &serde_json::Value, media_type: &str) -> TmdbMatch {
             .and_then(|v| v.as_str())
             .map(String::from),
         year,
-        overview: item.get("overview").and_then(|v| v.as_str()).map(String::from),
+        overview: item
+            .get("overview")
+            .and_then(|v| v.as_str())
+            .map(String::from),
         vote_average: item.get("vote_average").and_then(|v| v.as_f64()),
-        vote_count: item.get("vote_count").and_then(|v| v.as_i64()).map(|v| v as i32),
+        vote_count: item
+            .get("vote_count")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32),
         genre_ids: item
             .get("genre_ids")
             .and_then(|v| v.as_array())
-            .map(|arr| arr.iter().filter_map(|v| v.as_i64().map(|i| i as i32)).collect())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_i64().map(|i| i as i32))
+                    .collect()
+            })
             .unwrap_or_default(),
         popularity: item.get("popularity").and_then(|v| v.as_f64()),
-        poster_path: item.get("poster_path").and_then(|v| v.as_str()).map(String::from),
-        backdrop_path: item.get("backdrop_path").and_then(|v| v.as_str()).map(String::from),
+        poster_path: item
+            .get("poster_path")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+        backdrop_path: item
+            .get("backdrop_path")
+            .and_then(|v| v.as_str())
+            .map(String::from),
     }
 }
 
@@ -349,7 +369,10 @@ fn parse_detail(data: &serde_json::Value, media_type: &str) -> TmdbDetail {
                 .filter_map(|c| {
                     Some(CastMember {
                         name: c.get("name")?.as_str()?.to_string(),
-                        character: c.get("character").and_then(|v| v.as_str()).map(String::from),
+                        character: c
+                            .get("character")
+                            .and_then(|v| v.as_str())
+                            .map(String::from),
                         order: c.get("order").and_then(|v| v.as_i64()).map(|v| v as i32),
                     })
                 })
@@ -367,16 +390,37 @@ fn parse_detail(data: &serde_json::Value, media_type: &str) -> TmdbDetail {
             .and_then(|v| v.as_str())
             .map(String::from),
         year,
-        overview: data.get("overview").and_then(|v| v.as_str()).map(String::from),
+        overview: data
+            .get("overview")
+            .and_then(|v| v.as_str())
+            .map(String::from),
         vote_average: data.get("vote_average").and_then(|v| v.as_f64()),
-        vote_count: data.get("vote_count").and_then(|v| v.as_i64()).map(|v| v as i32),
+        vote_count: data
+            .get("vote_count")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32),
         genres,
-        runtime: data.get("runtime").and_then(|v| v.as_i64()).map(|v| v as i32),
-        status: data.get("status").and_then(|v| v.as_str()).map(String::from),
-        tagline: data.get("tagline").and_then(|v| v.as_str()).map(String::from),
+        runtime: data
+            .get("runtime")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32),
+        status: data
+            .get("status")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+        tagline: data
+            .get("tagline")
+            .and_then(|v| v.as_str())
+            .map(String::from),
         imdb_id,
-        number_of_seasons: data.get("number_of_seasons").and_then(|v| v.as_i64()).map(|v| v as i32),
-        number_of_episodes: data.get("number_of_episodes").and_then(|v| v.as_i64()).map(|v| v as i32),
+        number_of_seasons: data
+            .get("number_of_seasons")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32),
+        number_of_episodes: data
+            .get("number_of_episodes")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32),
         cast,
         raw: data.clone(),
     }

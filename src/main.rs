@@ -1,4 +1,3 @@
-
 use clap::Parser;
 use tokio_util::sync::CancellationToken;
 
@@ -8,7 +7,11 @@ use indexarr_identity::ContributorIdentity;
 use indexarr_web::state::AppState;
 
 #[derive(Parser)]
-#[command(name = "indexarr", about = "Decentralized torrent indexing", version = "0.1.0")]
+#[command(
+    name = "indexarr",
+    about = "Decentralized torrent indexing",
+    version = "0.1.0"
+)]
 struct Cli {
     /// Run all workers (http_server, dht_crawler, resolver, announcer, sync)
     #[arg(long)]
@@ -106,7 +109,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Determine workers
     let workers: Vec<String> = if cli.all {
         vec![
-            "http_server", "dht_crawler", "resolver", "announcer", "sync",
+            "http_server",
+            "dht_crawler",
+            "resolver",
+            "announcer",
+            "sync",
         ]
         .into_iter()
         .map(String::from)
@@ -172,7 +179,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // DHT crawler + resolver
-    let needs_dht = workers.iter().any(|w| w == "dht_crawler" || w == "resolver");
+    let needs_dht = workers
+        .iter()
+        .any(|w| w == "dht_crawler" || w == "resolver");
     let _dht_engine = if needs_dht {
         let dht_shared = indexarr_dht::DhtSharedState::new();
         let dht_instances = state.settings.dht_instances;
@@ -183,7 +192,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             dht_base_port,
             dht_shared.clone(),
             cancel.clone(),
-        ).await {
+        )
+        .await
+        {
             Ok(engine) => {
                 let engine = std::sync::Arc::new(engine);
 
@@ -192,7 +203,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let ingest_shared = dht_shared.clone();
                 let ingest_cancel = cancel.clone();
                 handles.push(tokio::spawn(async move {
-                    indexarr_dht::ingest::run_hash_ingest(ingest_pool, ingest_shared, ingest_cancel).await;
+                    indexarr_dht::ingest::run_hash_ingest(
+                        ingest_pool,
+                        ingest_shared,
+                        ingest_cancel,
+                    )
+                    .await;
                 }));
 
                 // Start crawler
@@ -247,12 +263,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let identity = std::sync::Arc::new(tokio::sync::RwLock::new(
             indexarr_identity::ContributorIdentity::new(&state.settings.data_dir),
         ));
-        { let mut id = identity.write().await; let _ = id.load_or_generate(); }
+        {
+            let mut id = identity.write().await;
+            let _ = id.load_or_generate();
+        }
 
-        let ban_list = std::sync::Arc::new(tokio::sync::RwLock::new(
-            indexarr_identity::BanList::new(&state.settings.swarm_maintainer_pubkey, &state.settings.data_dir),
-        ));
-        { ban_list.write().await.load(); }
+        let ban_list =
+            std::sync::Arc::new(tokio::sync::RwLock::new(indexarr_identity::BanList::new(
+                &state.settings.swarm_maintainer_pubkey,
+                &state.settings.data_dir,
+            )));
+        {
+            ban_list.write().await.load();
+        }
 
         let manager = indexarr_sync::manager::SyncManager::new(
             state.pool.clone(),

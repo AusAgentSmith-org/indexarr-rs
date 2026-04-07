@@ -1,6 +1,6 @@
 pub mod engine;
-pub mod resolver;
 pub mod ingest;
+pub mod resolver;
 
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -44,7 +44,10 @@ impl DhtSharedState {
     pub fn push_hash(&self, hash: DiscoveredHash) {
         // Cache peer if available
         if let (Some(ip), Some(port)) = (&hash.peer_ip, hash.peer_port) {
-            let mut peers = self.peer_cache.entry(hash.info_hash.clone()).or_insert_with(|| VecDeque::with_capacity(20));
+            let mut peers = self
+                .peer_cache
+                .entry(hash.info_hash.clone())
+                .or_insert_with(|| VecDeque::with_capacity(20));
             if peers.len() < 20 {
                 peers.push_back((ip.clone(), port));
             }
@@ -75,11 +78,20 @@ impl DhtSharedState {
     pub fn evict_if_needed(&self) {
         if self.peer_cache.len() > self.max_cache_size {
             let to_remove = self.max_cache_size / 4;
-            let keys: Vec<String> = self.peer_cache.iter().take(to_remove).map(|e| e.key().clone()).collect();
+            let keys: Vec<String> = self
+                .peer_cache
+                .iter()
+                .take(to_remove)
+                .map(|e| e.key().clone())
+                .collect();
             for key in keys {
                 self.peer_cache.remove(&key);
             }
-            tracing::debug!(removed = to_remove, remaining = self.peer_cache.len(), "peer cache eviction");
+            tracing::debug!(
+                removed = to_remove,
+                remaining = self.peer_cache.len(),
+                "peer cache eviction"
+            );
         }
     }
 }

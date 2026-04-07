@@ -8,9 +8,7 @@ use serde::Deserialize;
 
 use crate::state::AppState;
 
-async fn identity_status(
-    State(state): State<Arc<AppState>>,
-) -> Json<serde_json::Value> {
+async fn identity_status(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let identity = state.identity.read();
     let needs_onboarding = identity.needs_onboarding();
     let recovery_key = if needs_onboarding {
@@ -49,23 +47,17 @@ async fn restore_identity(
     })))
 }
 
-async fn acknowledge_onboarding(
-    State(state): State<Arc<AppState>>,
-) -> Json<serde_json::Value> {
+async fn acknowledge_onboarding(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let identity = state.identity.read();
     identity.acknowledge_onboarding();
     Json(serde_json::json!({ "status": "acknowledged" }))
 }
 
-async fn get_bans(
-    State(_state): State<Arc<AppState>>,
-) -> Json<serde_json::Value> {
+async fn get_bans(State(_state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     Json(serde_json::json!({ "bans": {}, "total": 0 }))
 }
 
-async fn get_epoch_info(
-    State(state): State<Arc<AppState>>,
-) -> Json<serde_json::Value> {
+async fn get_epoch_info(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let epoch = indexarr_sync::epoch::get_current_epoch(&state.settings.data_dir);
     let decl = indexarr_sync::epoch::get_declaration(&state.settings.data_dir);
 

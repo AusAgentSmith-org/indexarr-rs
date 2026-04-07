@@ -156,13 +156,16 @@ impl Settings {
 
             proxy_url: env_str("INDEXARR_PROXY_URL", ""),
 
-            default_trackers: env_list("INDEXARR_DEFAULT_TRACKERS", &[
-                "udp://tracker.opentrackr.org:1337/announce",
-                "udp://open.stealth.si:80/announce",
-                "udp://tracker.torrent.eu.org:451/announce",
-                "udp://open.demonii.com:1337/announce",
-                "udp://explodie.org:6969/announce",
-            ]),
+            default_trackers: env_list(
+                "INDEXARR_DEFAULT_TRACKERS",
+                &[
+                    "udp://tracker.opentrackr.org:1337/announce",
+                    "udp://open.stealth.si:80/announce",
+                    "udp://tracker.torrent.eu.org:451/announce",
+                    "udp://open.demonii.com:1337/announce",
+                    "udp://explodie.org:6969/announce",
+                ],
+            ),
 
             classifier_path: env_opt_path("INDEXARR_CLASSIFIER_PATH"),
             content_ban_enabled: env_bool("INDEXARR_CONTENT_BAN_ENABLED", true),
@@ -201,9 +204,18 @@ impl Settings {
             sync_reputation_trusted: env_f64("INDEXARR_SYNC_REPUTATION_TRUSTED", 500.0),
             sync_reputation_untrusted: env_f64("INDEXARR_SYNC_REPUTATION_UNTRUSTED", 20.0),
             sync_reputation_max: env_f64("INDEXARR_SYNC_REPUTATION_MAX", 10000.0),
-            sync_reputation_penalty_failure: env_f64("INDEXARR_SYNC_REPUTATION_PENALTY_FAILURE", 10.0),
-            sync_reputation_penalty_invalid: env_f64("INDEXARR_SYNC_REPUTATION_PENALTY_INVALID", 100.0),
-            sync_reputation_bonus_contribution: env_f64("INDEXARR_SYNC_REPUTATION_BONUS_CONTRIBUTION", 0.1),
+            sync_reputation_penalty_failure: env_f64(
+                "INDEXARR_SYNC_REPUTATION_PENALTY_FAILURE",
+                10.0,
+            ),
+            sync_reputation_penalty_invalid: env_f64(
+                "INDEXARR_SYNC_REPUTATION_PENALTY_INVALID",
+                100.0,
+            ),
+            sync_reputation_bonus_contribution: env_f64(
+                "INDEXARR_SYNC_REPUTATION_BONUS_CONTRIBUTION",
+                0.1,
+            ),
             sync_reputation_bonus_per_day: env_f64("INDEXARR_SYNC_REPUTATION_BONUS_PER_DAY", 5.0),
 
             sync_reachability_check: env_bool("INDEXARR_SYNC_REACHABILITY_CHECK", true),
@@ -212,14 +224,18 @@ impl Settings {
             xmpp_jid: env_str("INDEXARR_XMPP_JID", ""),
             xmpp_password: env_str("INDEXARR_XMPP_PASSWORD", ""),
             xmpp_server: env_str("INDEXARR_XMPP_SERVER", ""),
-            xmpp_muc_room: env_str("INDEXARR_XMPP_MUC_ROOM", "indexarr-sync@conference.indexarr.net"),
+            xmpp_muc_room: env_str(
+                "INDEXARR_XMPP_MUC_ROOM",
+                "indexarr-sync@conference.indexarr.net",
+            ),
 
             swarm_maintainer_pubkey: env_str("INDEXARR_SWARM_MAINTAINER_PUBKEY", ""),
             contributor_recovery_key: env_str("INDEXARR_CONTRIBUTOR_RECOVERY_KEY", ""),
 
-            workers: env_csv_or("INDEXARR_WORKERS", &[
-                "http_server", "dht_crawler", "resolver", "announcer",
-            ]),
+            workers: env_csv_or(
+                "INDEXARR_WORKERS",
+                &["http_server", "dht_crawler", "resolver", "announcer"],
+            ),
         }
     }
 

@@ -69,7 +69,11 @@ pub fn parse(name: &str) -> ParsedTorrent {
     text = extract_all_matches(&mut result.audio_codecs, &text, &maps::AUDIO_CODEC_PATTERNS);
 
     // Audio channels
-    text = extract_first_match(&mut result.audio_channels, &text, &maps::AUDIO_CHANNEL_PATTERNS);
+    text = extract_first_match(
+        &mut result.audio_channels,
+        &text,
+        &maps::AUDIO_CHANNEL_PATTERNS,
+    );
 
     // Languages (multi-value)
     text = extract_all_matches(&mut result.languages, &text, &maps::LANGUAGE_PATTERNS);
@@ -138,7 +142,11 @@ fn extract_episodes(result: &mut ParsedTorrent, text: &str) -> String {
         let e2: i32 = caps[3].parse().unwrap_or(0);
         result.season = Some(s);
         result.seasons = vec![s];
-        result.episodes = if e2 > e1 { (e1..=e2).collect() } else { vec![e1, e2] };
+        result.episodes = if e2 > e1 {
+            (e1..=e2).collect()
+        } else {
+            vec![e1, e2]
+        };
         result.episode = Some(e1);
         let m = caps.get(0).unwrap();
         t = t[..m.start()].to_string() + &t[m.end()..];
@@ -153,7 +161,8 @@ fn extract_episodes(result: &mut ParsedTorrent, text: &str) -> String {
         result.season = Some(s);
         result.seasons = vec![s];
         static RE_ENUM: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?i)E(\d{1,4})").unwrap());
-        result.episodes = RE_ENUM.captures_iter(&caps[2])
+        result.episodes = RE_ENUM
+            .captures_iter(&caps[2])
             .filter_map(|c| c[1].parse::<i32>().ok())
             .collect();
         result.episode = result.episodes.first().copied();
@@ -176,8 +185,7 @@ fn extract_episodes(result: &mut ParsedTorrent, text: &str) -> String {
     }
 
     // S01E02 (standard)
-    static RE_SE: Lazy<Regex> =
-        Lazy::new(|| Regex::new(r"(?i)\bS(\d{1,4})E(\d{1,4})\b").unwrap());
+    static RE_SE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?i)\bS(\d{1,4})E(\d{1,4})\b").unwrap());
     if let Some(caps) = RE_SE.captures(&t) {
         result.season = Some(caps[1].parse().unwrap_or(0));
         result.episode = Some(caps[2].parse().unwrap_or(0));
@@ -190,8 +198,7 @@ fn extract_episodes(result: &mut ParsedTorrent, text: &str) -> String {
 
     // S01 (season only — without episode)
     // Can't use lookahead with regex crate, so we check manually
-    static RE_SEASON_ONLY: Lazy<Regex> =
-        Lazy::new(|| Regex::new(r"(?i)\bS(\d{1,4})\b").unwrap());
+    static RE_SEASON_ONLY: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?i)\bS(\d{1,4})\b").unwrap());
     if let Some(caps) = RE_SEASON_ONLY.captures(&t) {
         let m = caps.get(0).unwrap();
         // Manual negative lookahead: ensure no 'E' follows
@@ -218,9 +225,8 @@ fn extract_episodes(result: &mut ParsedTorrent, text: &str) -> String {
     }
 
     // Season N Episode M
-    static RE_LONG: Lazy<Regex> = Lazy::new(|| {
-        Regex::new(r"(?i)\bSeason[. ](\d{1,4})[. ]Episode[. ](\d{1,4})\b").unwrap()
-    });
+    static RE_LONG: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r"(?i)\bSeason[. ](\d{1,4})[. ]Episode[. ](\d{1,4})\b").unwrap());
     if let Some(caps) = RE_LONG.captures(&t) {
         result.season = Some(caps[1].parse().unwrap_or(0));
         result.episode = Some(caps[2].parse().unwrap_or(0));
@@ -266,7 +272,10 @@ fn extract_title(result: &mut ParsedTorrent, original: &str) {
     });
 
     let text = original.replace('_', " ");
-    let end_pos = RE_TITLE_STOP.find(&text).map(|m| m.start()).unwrap_or(text.len());
+    let end_pos = RE_TITLE_STOP
+        .find(&text)
+        .map(|m| m.start())
+        .unwrap_or(text.len());
     let title = text[..end_pos]
         .replace('.', " ")
         .replace('-', " ")
@@ -276,18 +285,21 @@ fn extract_title(result: &mut ParsedTorrent, original: &str) {
         .trim()
         .to_string();
 
-    result.title = if title.is_empty() { original.to_string() } else { title };
+    result.title = if title.is_empty() {
+        original.to_string()
+    } else {
+        title
+    };
 }
 
 fn extract_group(result: &mut ParsedTorrent, text: &str) {
     static RE_GROUP: Lazy<Regex> =
         Lazy::new(|| Regex::new(r"-([A-Za-z0-9_]{2,20})(?:\[.*\])?$").unwrap());
     static KNOWN_TAGS: &[&str] = &[
-        "720p", "1080p", "2160p", "4320p", "BluRay", "WEB", "HDTV", "DVDRip",
-        "REMUX", "PROPER", "REPACK", "EXTENDED", "UNRATED", "IMAX",
-        "H264", "H265", "x264", "x265", "HEVC", "AVC", "XviD", "AV1",
-        "DTS", "AAC", "FLAC", "AC3", "Atmos", "TrueHD", "DD",
-        "HDR", "HDR10", "DV", "DoVi", "HLG", "SDR",
+        "720p", "1080p", "2160p", "4320p", "BluRay", "WEB", "HDTV", "DVDRip", "REMUX", "PROPER",
+        "REPACK", "EXTENDED", "UNRATED", "IMAX", "H264", "H265", "x264", "x265", "HEVC", "AVC",
+        "XviD", "AV1", "DTS", "AAC", "FLAC", "AC3", "Atmos", "TrueHD", "DD", "HDR", "HDR10", "DV",
+        "DoVi", "HLG", "SDR",
     ];
     if let Some(caps) = RE_GROUP.captures(text) {
         let group = caps[1].to_string();
@@ -297,7 +309,11 @@ fn extract_group(result: &mut ParsedTorrent, text: &str) {
     }
 }
 
-fn extract_first_match(target: &mut Option<String>, text: &str, patterns: &[(Regex, &str)]) -> String {
+fn extract_first_match(
+    target: &mut Option<String>,
+    text: &str,
+    patterns: &[(Regex, &str)],
+) -> String {
     let mut t = text.to_string();
     for (re, value) in patterns {
         if let Some(m) = re.find(&t) {
@@ -324,21 +340,35 @@ fn extract_all_matches(target: &mut Vec<String>, text: &str, patterns: &[(Regex,
 }
 
 fn detect_flag(text: &str, pattern: &str) -> bool {
-    Regex::new(pattern).map(|re| re.is_match(text)).unwrap_or(false)
+    Regex::new(pattern)
+        .map(|re| re.is_match(text))
+        .unwrap_or(false)
 }
 
 fn normalize_platform(raw: &str) -> String {
     let lower = raw.to_lowercase().replace(['.', ' '], "");
     match lower.as_str() {
-        "ps5" => "PS5", "ps4" => "PS4", "ps3" => "PS3", "ps2" => "PS2",
-        "psvita" => "PS Vita", "psp" => "PSP",
-        "xboxseries" => "Xbox Series", "xboxone" => "Xbox One", "xbox360" => "Xbox 360",
-        "switch" | "nsw" => "Switch", "3ds" => "3DS",
-        "wiiu" => "Wii U", "wii" => "Wii",
-        "pc" => "PC", "macos" | "mac" => "macOS",
-        "linux" => "Linux", "android" => "Android", "ios" => "iOS",
+        "ps5" => "PS5",
+        "ps4" => "PS4",
+        "ps3" => "PS3",
+        "ps2" => "PS2",
+        "psvita" => "PS Vita",
+        "psp" => "PSP",
+        "xboxseries" => "Xbox Series",
+        "xboxone" => "Xbox One",
+        "xbox360" => "Xbox 360",
+        "switch" | "nsw" => "Switch",
+        "3ds" => "3DS",
+        "wiiu" => "Wii U",
+        "wii" => "Wii",
+        "pc" => "PC",
+        "macos" | "mac" => "macOS",
+        "linux" => "Linux",
+        "android" => "Android",
+        "ios" => "iOS",
         _ => return raw.to_string(),
-    }.to_string()
+    }
+    .to_string()
 }
 
 #[cfg(test)]

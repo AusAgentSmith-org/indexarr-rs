@@ -14,13 +14,20 @@ async fn system_status(
     let pool = &state.pool;
 
     let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM torrents")
-        .fetch_one(pool).await.map_err(db_err)?;
-    let resolved: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM torrents WHERE resolved_at IS NOT NULL")
-        .fetch_one(pool).await.map_err(db_err)?;
+        .fetch_one(pool)
+        .await
+        .map_err(db_err)?;
+    let resolved: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM torrents WHERE resolved_at IS NOT NULL")
+            .fetch_one(pool)
+            .await
+            .map_err(db_err)?;
 
     // DB version
     let db_version: String = sqlx::query_scalar("SELECT version()")
-        .fetch_one(pool).await.map_err(db_err)?;
+        .fetch_one(pool)
+        .await
+        .map_err(db_err)?;
 
     Ok(Json(serde_json::json!({
         "version": "0.1.0",
@@ -39,12 +46,10 @@ async fn system_status(
     })))
 }
 
-async fn get_api_key(
-    State(state): State<Arc<AppState>>,
-) -> Json<serde_json::Value> {
+async fn get_api_key(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let key = &state.settings.torznab_api_key;
     let masked = if key.len() > 4 {
-        format!("{}...{}", &key[..2], &key[key.len()-4..])
+        format!("{}...{}", &key[..2], &key[key.len() - 4..])
     } else if key.is_empty() {
         "(not set)".to_string()
     } else {
@@ -57,9 +62,7 @@ async fn get_api_key(
     }))
 }
 
-async fn generate_api_key(
-    State(state): State<Arc<AppState>>,
-) -> Json<serde_json::Value> {
+async fn generate_api_key(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     // Generate a random 32-char hex key
     let key: String = (0..32)
         .map(|_| format!("{:x}", rand::random::<u8>()))
@@ -83,8 +86,16 @@ async fn generate_api_key(
 // --- Sync Preferences ---
 
 static ALL_CATEGORIES: &[&str] = &[
-    "movie", "tv_show", "music", "ebook", "comic",
-    "audiobook", "game", "software", "xxx", "unknown",
+    "movie",
+    "tv_show",
+    "music",
+    "ebook",
+    "comic",
+    "audiobook",
+    "game",
+    "software",
+    "xxx",
+    "unknown",
 ];
 
 #[derive(Debug, serde::Deserialize)]
@@ -93,18 +104,25 @@ struct SyncPrefsRequest {
     sync_comments: bool,
 }
 
-async fn get_sync_preferences(
-    State(state): State<Arc<AppState>>,
-) -> Json<serde_json::Value> {
+async fn get_sync_preferences(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     // Load from data dir or use defaults (all categories)
     let prefs_path = state.settings.data_dir.join("sync_preferences.json");
-    let (import_categories, sync_comments) = if let Ok(data) = std::fs::read_to_string(&prefs_path) {
+    let (import_categories, sync_comments) = if let Ok(data) = std::fs::read_to_string(&prefs_path)
+    {
         if let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) {
-            let cats: Vec<String> = v.get("import_categories")
+            let cats: Vec<String> = v
+                .get("import_categories")
                 .and_then(|v| v.as_array())
-                .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect::<Vec<_>>())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect::<Vec<_>>()
+                })
                 .unwrap_or_else(|| ALL_CATEGORIES.iter().map(|s| s.to_string()).collect());
-            let comments = v.get("sync_comments").and_then(|v| v.as_bool()).unwrap_or(true);
+            let comments = v
+                .get("sync_comments")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(true);
             (cats, comments)
         } else {
             (ALL_CATEGORIES.iter().map(|s| s.to_string()).collect(), true)
@@ -131,7 +149,10 @@ async fn set_sync_preferences(
 
     let prefs_path = state.settings.data_dir.join("sync_preferences.json");
     let _ = std::fs::create_dir_all(&state.settings.data_dir);
-    let _ = std::fs::write(&prefs_path, serde_json::to_string_pretty(&prefs).unwrap_or_default());
+    let _ = std::fs::write(
+        &prefs_path,
+        serde_json::to_string_pretty(&prefs).unwrap_or_default(),
+    );
 
     Json(serde_json::json!({
         "all_categories": ALL_CATEGORIES,
@@ -153,7 +174,9 @@ async fn get_recent_logs(
     Query(params): Query<LogParams>,
 ) -> Json<serde_json::Value> {
     let limit = params.limit.unwrap_or(500).min(5000);
-    let entries = state.log_capture.get_recent(limit, params.category.as_deref());
+    let entries = state
+        .log_capture
+        .get_recent(limit, params.category.as_deref());
     Json(serde_json::json!({
         "entries": entries,
         "categories": state.log_capture.categories(),
@@ -161,15 +184,11 @@ async fn get_recent_logs(
     }))
 }
 
-async fn get_log_categories(
-    State(state): State<Arc<AppState>>,
-) -> Json<serde_json::Value> {
+async fn get_log_categories(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     Json(serde_json::json!(state.log_capture.categories()))
 }
 
-async fn toggle_debug(
-    State(state): State<Arc<AppState>>,
-) -> Json<serde_json::Value> {
+async fn toggle_debug(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let new_val = !state.log_capture.debug_enabled();
     state.log_capture.set_debug_enabled(new_val);
     Json(serde_json::json!({ "debug_enabled": new_val }))
@@ -218,7 +237,10 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/system/status", get(system_status))
         .route("/system/apikey", get(get_api_key))
         .route("/system/apikey/generate", post(generate_api_key))
-        .route("/system/sync/preferences", get(get_sync_preferences).post(set_sync_preferences))
+        .route(
+            "/system/sync/preferences",
+            get(get_sync_preferences).post(set_sync_preferences),
+        )
         .route("/system/logs/recent", get(get_recent_logs))
         .route("/system/logs/categories", get(get_log_categories))
         .route("/system/logs/debug", post(toggle_debug))

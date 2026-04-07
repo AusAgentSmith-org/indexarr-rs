@@ -69,7 +69,9 @@ impl TorrentAnnouncer {
         tracing::info!(pool_size = self.settings.pool_size, "announcer started");
 
         loop {
-            if cancel.is_cancelled() { break; }
+            if cancel.is_cancelled() {
+                break;
+            }
 
             // 1. Backfill pool with candidates from DB
             if let Err(e) = self.load_candidates().await {
@@ -110,7 +112,9 @@ impl TorrentAnnouncer {
     /// Fill pool slots from DB with unannounced/stale torrents.
     async fn load_candidates(&mut self) -> Result<(), sqlx::Error> {
         let free_slots = self.settings.pool_size as usize - self.tracked.len();
-        if free_slots == 0 { return Ok(()); }
+        if free_slots == 0 {
+            return Ok(());
+        }
 
         let exclude: Vec<&str> = self.tracked.keys().map(|s| s.as_str()).collect();
 
@@ -120,7 +124,7 @@ impl TorrentAnnouncer {
              WHERE name IS NOT NULL AND no_peers IS NOT TRUE \
                AND info_hash != ALL($1) \
              ORDER BY announced_at ASC NULLS FIRST \
-             LIMIT $2"
+             LIMIT $2",
         )
         .bind(&exclude)
         .bind(free_slots as i64)
@@ -133,16 +137,19 @@ impl TorrentAnnouncer {
             let trackers_json: Option<serde_json::Value> = row.get("trackers");
             let trackers = parse_trackers(trackers_json, &self.settings.default_trackers);
 
-            self.tracked.insert(hash.clone(), TrackedHandle {
-                info_hash: hash,
-                name,
-                trackers,
-                added_at: Instant::now(),
-                best_seeds: 0,
-                best_peers: 0,
-                settled: false,
-                announce_miss: 0,
-            });
+            self.tracked.insert(
+                hash.clone(),
+                TrackedHandle {
+                    info_hash: hash,
+                    name,
+                    trackers,
+                    added_at: Instant::now(),
+                    best_seeds: 0,
+                    best_peers: 0,
+                    settled: false,
+                    announce_miss: 0,
+                },
+            );
         }
 
         Ok(())
@@ -174,10 +181,13 @@ impl TorrentAnnouncer {
 
             // Harvest if past rotate interval
             if age >= self.settings.rotate_interval {
-                harvested.push((hash.clone(), HarvestResult {
-                    seeds: handle.best_seeds,
-                    peers: handle.best_peers,
-                }));
+                harvested.push((
+                    hash.clone(),
+                    HarvestResult {
+                        seeds: handle.best_seeds,
+                        peers: handle.best_peers,
+                    },
+                ));
             }
         }
 
@@ -185,7 +195,10 @@ impl TorrentAnnouncer {
     }
 
     /// Persist harvest results to DB.
-    async fn persist_results(&mut self, results: &[(String, HarvestResult)]) -> Result<(), sqlx::Error> {
+    async fn persist_results(
+        &mut self,
+        results: &[(String, HarvestResult)],
+    ) -> Result<(), sqlx::Error> {
         for (hash, result) in results {
             let has_activity = result.seeds > 0 || result.peers > 0;
 
@@ -197,7 +210,7 @@ impl TorrentAnnouncer {
                        peer_count = GREATEST(peer_count, $3), \
                        announced_at = NOW(), \
                        announce_miss = 0 \
-                     WHERE info_hash = $1"
+                     WHERE info_hash = $1",
                 )
                 .bind(hash)
                 .bind(result.seeds)
@@ -208,7 +221,7 @@ impl TorrentAnnouncer {
                 // 3-strike rule
                 let miss: Option<i32> = sqlx::query_scalar(
                     "UPDATE torrents SET announce_miss = announce_miss + 1, announced_at = NOW() \
-                     WHERE info_hash = $1 RETURNING announce_miss"
+                     WHERE info_hash = $1 RETURNING announce_miss",
                 )
                 .bind(hash)
                 .fetch_optional(&self.pool)
@@ -239,7 +252,8 @@ struct HarvestResult {
 /// Parse tracker URLs from JSON or use defaults.
 fn parse_trackers(json: Option<serde_json::Value>, defaults: &[String]) -> Vec<String> {
     if let Some(serde_json::Value::Array(arr)) = json {
-        let trackers: Vec<String> = arr.iter()
+        let trackers: Vec<String> = arr
+            .iter()
             .filter_map(|v| v.as_str().map(String::from))
             .collect();
         if !trackers.is_empty() {
@@ -255,8 +269,12 @@ fn parse_trackers(json: Option<serde_json::Value>, defaults: &[String]) -> Vec<S
 /// For UDP trackers, a full BEP 15 implementation would be needed.
 /// Falls back to (0, 0) if no tracker responds.
 async fn scrape_trackers(info_hash: &str, trackers: &[String]) -> (i32, i32) {
-    let Ok(hash_bytes) = hex::decode(info_hash) else { return (0, 0) };
-    if hash_bytes.len() != 20 { return (0, 0); }
+    let Ok(hash_bytes) = hex::decode(info_hash) else {
+        return (0, 0);
+    };
+    if hash_bytes.len() != 20 {
+        return (0, 0);
+    }
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(5))
@@ -265,7 +283,9 @@ async fn scrape_trackers(info_hash: &str, trackers: &[String]) -> (i32, i32) {
 
     for tracker_url in trackers {
         // Only HTTP trackers for now (UDP tracker BEP 15 scrape deferred)
-        if !tracker_url.starts_with("http") { continue; }
+        if !tracker_url.starts_with("http") {
+            continue;
+        }
 
         // Convert announce URL to scrape URL
         let scrape_url = tracker_url.replace("/announce", "/scrape");
@@ -308,7 +328,9 @@ fn extract_bencode_int_bytes(data: &[u8], key: &[u8]) -> Option<i32> {
     let pos = data.windows(key.len()).position(|w| w == key)?;
     let after_key = &data[pos + key.len()..];
     // Expect 'i' <digits> 'e'
-    if after_key.first() != Some(&b'i') { return None; }
+    if after_key.first() != Some(&b'i') {
+        return None;
+    }
     let end = after_key.iter().position(|&b| b == b'e')?;
     std::str::from_utf8(&after_key[1..end]).ok()?.parse().ok()
 }

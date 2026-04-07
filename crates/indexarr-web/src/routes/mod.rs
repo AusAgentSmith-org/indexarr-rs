@@ -1,15 +1,15 @@
-pub mod health;
-pub mod search;
-pub mod stats;
-pub mod queue;
-pub mod torrents;
 pub mod categories;
-pub mod upload;
-pub mod social;
-pub mod identity;
-pub mod system;
 pub mod crud;
+pub mod health;
+pub mod identity;
+pub mod queue;
+pub mod search;
+pub mod social;
+pub mod stats;
 pub mod sync;
+pub mod system;
+pub mod torrents;
+pub mod upload;
 
 use std::sync::Arc;
 

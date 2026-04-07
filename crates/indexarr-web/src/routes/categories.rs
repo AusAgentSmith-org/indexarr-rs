@@ -88,7 +88,9 @@ pub fn compute_category(
 
     match ct {
         "movie" => {
-            if is_3d { return 2060; }
+            if is_3d {
+                return 2060;
+            }
             if video_source == Some("BluRay") && matches!(resolution, Some("2160p" | "1080p")) {
                 return 2050;
             }
@@ -119,7 +121,11 @@ pub fn compute_category(
             _ => 4050,
         },
         "software" => {
-            if platform == Some("macOS") { 4030 } else { 4010 }
+            if platform == Some("macOS") {
+                4030
+            } else {
+                4010
+            }
         }
         "ebook" => 7010,
         "comic" => 7020,

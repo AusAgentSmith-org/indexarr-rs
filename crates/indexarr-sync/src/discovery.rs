@@ -86,24 +86,33 @@ impl PeerTable {
 
         let now = Utc::now();
         self.url_index.insert(url.to_string(), peer_id.to_string());
-        self.peers.insert(peer_id.to_string(), PeerInfo {
-            peer_id: peer_id.to_string(),
-            url: url.to_string(),
-            source: source.to_string(),
-            last_seen: now,
-            last_sequence: 0,
-            fail_count: 0,
-            first_seen: now,
-            reputation: self.reputation_initial,
-        });
+        self.peers.insert(
+            peer_id.to_string(),
+            PeerInfo {
+                peer_id: peer_id.to_string(),
+                url: url.to_string(),
+                source: source.to_string(),
+                last_seen: now,
+                last_sequence: 0,
+                fail_count: 0,
+                first_seen: now,
+                reputation: self.reputation_initial,
+            },
+        );
         true
     }
 
     /// Evict the lowest-reputation non-bootstrap peer.
     fn evict_one(&mut self) -> bool {
-        let victim = self.peers.iter()
+        let victim = self
+            .peers
+            .iter()
             .filter(|(_, p)| p.source != "bootstrap")
-            .min_by(|a, b| a.1.reputation.partial_cmp(&b.1.reputation).unwrap_or(std::cmp::Ordering::Equal))
+            .min_by(|a, b| {
+                a.1.reputation
+                    .partial_cmp(&b.1.reputation)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .map(|(id, _)| id.clone());
 
         if let Some(id) = victim {
@@ -118,12 +127,18 @@ impl PeerTable {
 
     /// Get gossip targets weighted by reputation.
     pub fn get_gossip_targets(&self, count: usize) -> Vec<&PeerInfo> {
-        let mut healthy: Vec<&PeerInfo> = self.peers.values()
+        let mut healthy: Vec<&PeerInfo> = self
+            .peers
+            .values()
             .filter(|p| p.is_healthy(self.reputation_untrusted))
             .collect();
 
         // Sort by reputation descending, take top N
-        healthy.sort_by(|a, b| b.reputation.partial_cmp(&a.reputation).unwrap_or(std::cmp::Ordering::Equal));
+        healthy.sort_by(|a, b| {
+            b.reputation
+                .partial_cmp(&a.reputation)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         // Ensure at least one bootstrap peer if available
         let has_bootstrap = healthy.iter().any(|p| p.source == "bootstrap");
@@ -139,7 +154,9 @@ impl PeerTable {
     /// Update health after gossip attempt.
     pub fn update_health(&mut self, peer_id: &str, success: bool) {
         let (should_remove, penalty) = {
-            let Some(peer) = self.peers.get_mut(peer_id) else { return };
+            let Some(peer) = self.peers.get_mut(peer_id) else {
+                return;
+            };
             if success {
                 peer.fail_count = 0;
                 peer.last_seen = Utc::now();
@@ -194,7 +211,8 @@ impl PeerTable {
     }
 
     pub fn healthy_count(&self) -> usize {
-        self.peers.values()
+        self.peers
+            .values()
             .filter(|p| p.is_healthy(self.reputation_untrusted))
             .count()
     }
@@ -212,7 +230,7 @@ impl PeerTable {
             sqlx::query(
                 "INSERT INTO sync_state (peer_id, peer_url, last_sync_at, last_sequence, \
                  first_seen, fail_count, reputation, source) \
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
             )
             .bind(&peer.peer_id)
             .bind(&peer.url)
@@ -231,20 +249,28 @@ impl PeerTable {
 
     /// Load peer table from database.
     pub async fn load(&mut self, pool: &PgPool) -> Result<(), sqlx::Error> {
-        let rows = sqlx::query("SELECT * FROM sync_state").fetch_all(pool).await?;
+        let rows = sqlx::query("SELECT * FROM sync_state")
+            .fetch_all(pool)
+            .await?;
         for row in &rows {
             let peer_id: String = row.get("peer_id");
             let url: String = row.get::<Option<String>, _>("peer_url").unwrap_or_default();
-            if url.is_empty() { continue; }
+            if url.is_empty() {
+                continue;
+            }
 
             let peer = PeerInfo {
                 peer_id: peer_id.clone(),
                 url: url.clone(),
                 source: row.get("source"),
-                last_seen: row.get::<Option<DateTime<Utc>>, _>("last_sync_at").unwrap_or_else(Utc::now),
+                last_seen: row
+                    .get::<Option<DateTime<Utc>>, _>("last_sync_at")
+                    .unwrap_or_else(Utc::now),
                 last_sequence: row.get("last_sequence"),
                 fail_count: row.get("fail_count"),
-                first_seen: row.get::<Option<DateTime<Utc>>, _>("first_seen").unwrap_or_else(Utc::now),
+                first_seen: row
+                    .get::<Option<DateTime<Utc>>, _>("first_seen")
+                    .unwrap_or_else(Utc::now),
                 reputation: row.get("reputation"),
             };
 
@@ -266,6 +292,6 @@ impl PeerTable {
 }
 
 fn sha256_hex(data: &[u8]) -> String {
-    use sha2::{Sha256, Digest};
+    use sha2::{Digest, Sha256};
     hex::encode(Sha256::digest(data))
 }
