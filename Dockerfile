@@ -19,8 +19,10 @@ WORKDIR /build
 
 # Configure git for private dependencies (persists in /root/.gitconfig)
 ARG GIT_AUTH_TOKEN=""
+ARG PLUGIN_PASSWORD=""
 ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
-RUN git config --global url."http://x-access-token:${GIT_AUTH_TOKEN}@100.92.54.45:3002/".insteadOf "http://100.92.54.45:3002/"
+RUN TOKEN="${GIT_AUTH_TOKEN:-$PLUGIN_PASSWORD}" && \
+    git config --global url."http://x-access-token:${TOKEN}@100.92.54.45:3002/".insteadOf "http://100.92.54.45:3002/"
 
 # Cache dependencies by building a dummy project first
 COPY Cargo.toml Cargo.lock ./

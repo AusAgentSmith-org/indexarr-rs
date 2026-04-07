@@ -49,3 +49,16 @@ steps:
       - printf '[registries.forgejo]\ntoken = "Bearer %s"\n' "$GIT_AUTH_TOKEN" > $CARGO_HOME/credentials.toml
       - rustup component add clippy
       - cargo clippy --workspace -- -D warnings
+
+  - name: build-and-push
+    image: woodpeckerci/plugin-docker-buildx
+    settings:
+      repo: repo.indexarr.net/indexarr/indexarr-rs
+      registry: repo.indexarr.net
+      username:
+        from_secret: git_auth_token
+      password:
+        from_secret: git_auth_token
+      tag: latest
+      build_args_from_env:
+        - PLUGIN_PASSWORD
