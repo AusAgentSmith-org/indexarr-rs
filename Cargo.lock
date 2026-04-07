@@ -747,9 +747,9 @@ dependencies = [
 
 [[package]]
 name = "fastrand"
-version = "2.4.0"
+version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a043dc74da1e37d6afe657061213aa6f425f855399a11d3463c6ecccc4dfda1f"
+checksum = "9f1f227452a390804cdb637b74a86990f2a7d7ba4b7d5693aac9b4dd6defd8d6"
 
 [[package]]
 name = "fiat-crypto"
@@ -1286,7 +1286,7 @@ dependencies = [
 
 [[package]]
 name = "indexarr"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clap",
  "dotenvy",
@@ -1616,8 +1616,9 @@ dependencies = [
 
 [[package]]
 name = "librtbit-bencode"
-version = "0.1.0"
-source = "git+https://github.com/AusAgentSmith-org/librtbit-bencode.git?tag=v0.1.0#86a794304eeb44f008650914700f70f59d0a5b7e"
+version = "0.1.1"
+source = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"
+checksum = "3c7026c019e7aae5fbd1c9dc41f83648cc165f4be740dfe13496e4a248a5176b"
 dependencies = [
  "anyhow",
  "arrayvec",
@@ -1632,8 +1633,9 @@ dependencies = [
 
 [[package]]
 name = "librtbit-buffers"
-version = "0.1.0"
-source = "git+https://github.com/AusAgentSmith-org/librtbit-buffers.git?tag=v0.1.0#3385f67c4dad792020603542eeb11853a5a60fc7"
+version = "0.1.1"
+source = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"
+checksum = "5d32ad9f98e44df8995837f15628133a0dfcc604bc003b6298d1e238e0ceb4c7"
 dependencies = [
  "bytes",
  "librtbit-clone-to-owned",
@@ -1643,16 +1645,18 @@ dependencies = [
 
 [[package]]
 name = "librtbit-clone-to-owned"
-version = "0.1.0"
-source = "git+https://github.com/AusAgentSmith-org/librtbit-clone-to-owned.git?tag=v0.1.0#205d2c1b13a18bd4c50856a0e2fece02e61716b4"
+version = "0.1.1"
+source = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"
+checksum = "652077f668126ff93bf2c61fbfc88a38b60b9e50c1edc440a72c2a9a5b614459"
 dependencies = [
  "bytes",
 ]
 
 [[package]]
 name = "librtbit-core"
-version = "0.1.0"
-source = "git+https://github.com/AusAgentSmith-org/librtbit-core.git?tag=v0.1.0#1611b846d41302fcce365e3356d425f188269115"
+version = "0.1.1"
+source = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"
+checksum = "a329ebdc01c714f9dd5770da35ac495314936208bd77a240cc58577bc2040fb9"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1680,8 +1684,9 @@ dependencies = [
 
 [[package]]
 name = "librtbit-dht"
-version = "0.1.0"
-source = "git+https://github.com/AusAgentSmith-org/librtbit-dht.git?tag=v0.1.0#f725050c5df0aff1dfa3d5b0ae43574b8df8c40f"
+version = "0.1.1"
+source = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"
+checksum = "87a8ed0f41f3fd9ced66c8a5c7affbd6f09f60ce8396d12bfd7450f24b241bb4"
 dependencies = [
  "anyhow",
  "aws-lc-rs",
@@ -1712,8 +1717,9 @@ dependencies = [
 
 [[package]]
 name = "librtbit-sha1-wrapper"
-version = "0.1.0"
-source = "git+https://github.com/AusAgentSmith-org/librtbit-sha1-wrapper.git?tag=v0.1.0#15403f2292d878d159c1b52747a52667845133db"
+version = "0.1.1"
+source = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"
+checksum = "db142701a46374113e30dd0b39ec0f0c6fca5fe7481e0108b8178914173d52f5"
 dependencies = [
  "assert_cfg",
  "crypto-hash",
