@@ -2,6 +2,7 @@ when:
   - event: push
     branch: main
   - event: manual
+  - event: pull_request
 
 steps:
   - name: fmt
@@ -62,6 +63,9 @@ steps:
       tag: latest
       build_args_from_env:
         - PLUGIN_PASSWORD
+    when:
+      - event: push
+        branch: main
 
   - name: discord-success
     image: alpine/curl
