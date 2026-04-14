@@ -38,4 +38,3 @@ rand.workspace = true
 hex.workspace = true
 sha1 = "0.10"
 
-[patch.crates-io]
