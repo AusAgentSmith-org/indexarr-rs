@@ -99,11 +99,15 @@ steps:
         echo "Publishing release $TAG"
         cp target/release/indexarr "indexarr-$TAG-linux-x86_64"
         cp target/x86_64-pc-windows-msvc/release/indexarr.exe "indexarr-$TAG-windows-x86_64.exe"
-        sha256sum indexarr-$TAG-* > "SHA256SUMS-$TAG.txt"
-        ssh -o StrictHostKeyChecking=accept-new root@100.92.4.57 "mkdir -p /root/downloads/indexarr-rs/$TAG"
-        scp -o StrictHostKeyChecking=accept-new indexarr-$TAG-* "SHA256SUMS-$TAG.txt" root@100.92.4.57:/root/downloads/indexarr-rs/$TAG/
-        ssh -o StrictHostKeyChecking=accept-new root@100.92.4.57 "cd /root/downloads/indexarr-rs/$TAG && ln -sf indexarr-$TAG-linux-x86_64 indexarr-linux-x86_64 && ln -sf indexarr-$TAG-windows-x86_64.exe indexarr-windows-x86_64.exe"
-        ssh -o StrictHostKeyChecking=accept-new root@100.92.4.57 "ln -sfn $TAG /root/downloads/indexarr-rs/latest"
+        sha256sum "indexarr-$TAG-linux-x86_64" "indexarr-$TAG-windows-x86_64.exe" > "SHA256SUMS-$TAG.txt"
+        ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new root@100.92.4.57 "mkdir -p /root/downloads/indexarr-rs/$TAG"
+        scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new \
+          "indexarr-$TAG-linux-x86_64" \
+          "indexarr-$TAG-windows-x86_64.exe" \
+          "SHA256SUMS-$TAG.txt" \
+          root@100.92.4.57:/root/downloads/indexarr-rs/$TAG/
+        ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new root@100.92.4.57 "cd /root/downloads/indexarr-rs/$TAG && ln -sf indexarr-$TAG-linux-x86_64 indexarr-linux-x86_64 && ln -sf indexarr-$TAG-windows-x86_64.exe indexarr-windows-x86_64.exe"
+        ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new root@100.92.4.57 "ln -sfn $TAG /root/downloads/indexarr-rs/latest"
         echo "Published to Vultr"
 
   - name: push-ghcr
