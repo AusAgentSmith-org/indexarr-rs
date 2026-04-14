@@ -4,3 +4,7 @@ data/
 *.db
 .codesight/
 ui/node_modules/
+# CI-generated installer artifacts
+installer/indexarr.exe
+installer/*.exe
+!installer/windows.nsi

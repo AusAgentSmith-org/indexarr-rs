@@ -74,6 +74,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let filter = if settings.debug { "debug" } else { "info" };
     use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::util::SubscriberInitExt;
+
+    // Always write logs to data/indexarr.log so they survive a closed console window
+    let data_dir = std::path::PathBuf::from(&settings.data_dir);
+    let _ = std::fs::create_dir_all(&data_dir);
+    let file_layer = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(data_dir.join("indexarr.log"))
+        .ok()
+        .map(|f| {
+            tracing_subscriber::fmt::layer()
+                .with_writer(std::sync::Mutex::new(f))
+                .with_ansi(false)
+        });
+
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -81,6 +96,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .with(tracing_subscriber::fmt::layer())
         .with(log_layer)
+        .with(file_layer)
         .init();
 
     // Initialize contributor identity
