@@ -144,13 +144,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Handle SIGINT/SIGTERM
     let cancel_signal = cancel.clone();
     tokio::spawn(async move {
-        let ctrl_c = tokio::signal::ctrl_c();
-        let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-            .expect("failed to listen for SIGTERM");
-
-        tokio::select! {
-            _ = ctrl_c => {}
-            _ = sigterm.recv() => {}
+        #[cfg(unix)]
+        {
+            let ctrl_c = tokio::signal::ctrl_c();
+            let mut sigterm =
+                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                    .expect("failed to listen for SIGTERM");
+            tokio::select! {
+                _ = ctrl_c => {}
+                _ = sigterm.recv() => {}
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            tokio::signal::ctrl_c().await.ok();
         }
         tracing::info!("shutdown signal received");
         cancel_signal.cancel();
