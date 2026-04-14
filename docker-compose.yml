@@ -26,6 +26,7 @@ services:
   indexarr:
     build:
       context: .
+    # image: repo.indexarr.net/indexarr/indexarr-rs:latest
     depends_on:
       postgres:
         condition: service_healthy

@@ -13,7 +13,7 @@ indexarr-parser = { path = "../indexarr-parser" }
 indexarr-classifier = { path = "../indexarr-classifier" }
 
 # DHT library (re-exports Id20 from librtbit-core)
-dht = { version = "0.1.1", registry = "forgejo", package = "librtbit-dht" }
+dht = { version = "0.1.1", package = "librtbit-dht" }
 
 # Async
 tokio.workspace = true

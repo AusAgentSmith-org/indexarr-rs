@@ -7,47 +7,23 @@ when:
 steps:
   - name: fmt
     image: rust:1.88-bookworm
-    environment:
-      GIT_AUTH_TOKEN:
-        from_secret: git_auth_token
     commands:
-      - git config --global url."http://x-access-token:$GIT_AUTH_TOKEN@100.92.54.45:3002/".insteadOf "http://100.92.54.45:3002/"
-      - printf '[registries.forgejo]\nindex = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"\ncredential-provider = "cargo:token"\n\n[registry]\ndefault = "forgejo"\n' > $CARGO_HOME/config.toml
-      - printf '[registries.forgejo]\ntoken = "Bearer %s"\n' "$GIT_AUTH_TOKEN" > $CARGO_HOME/credentials.toml
       - rustup component add rustfmt
       - cargo fmt --all -- --check
 
   - name: check
     image: rust:1.88-bookworm
-    environment:
-      GIT_AUTH_TOKEN:
-        from_secret: git_auth_token
     commands:
-      - git config --global url."http://x-access-token:$GIT_AUTH_TOKEN@100.92.54.45:3002/".insteadOf "http://100.92.54.45:3002/"
-      - printf '[registries.forgejo]\nindex = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"\ncredential-provider = "cargo:token"\n\n[registry]\ndefault = "forgejo"\n' > $CARGO_HOME/config.toml
-      - printf '[registries.forgejo]\ntoken = "Bearer %s"\n' "$GIT_AUTH_TOKEN" > $CARGO_HOME/credentials.toml
       - cargo check --workspace
 
   - name: test
     image: rust:1.88-bookworm
-    environment:
-      GIT_AUTH_TOKEN:
-        from_secret: git_auth_token
     commands:
-      - git config --global url."http://x-access-token:$GIT_AUTH_TOKEN@100.92.54.45:3002/".insteadOf "http://100.92.54.45:3002/"
-      - printf '[registries.forgejo]\nindex = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"\ncredential-provider = "cargo:token"\n\n[registry]\ndefault = "forgejo"\n' > $CARGO_HOME/config.toml
-      - printf '[registries.forgejo]\ntoken = "Bearer %s"\n' "$GIT_AUTH_TOKEN" > $CARGO_HOME/credentials.toml
       - cargo test --workspace
 
   - name: clippy
     image: rust:1.88-bookworm
-    environment:
-      GIT_AUTH_TOKEN:
-        from_secret: git_auth_token
     commands:
-      - git config --global url."http://x-access-token:$GIT_AUTH_TOKEN@100.92.54.45:3002/".insteadOf "http://100.92.54.45:3002/"
-      - printf '[registries.forgejo]\nindex = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"\ncredential-provider = "cargo:token"\n\n[registry]\ndefault = "forgejo"\n' > $CARGO_HOME/config.toml
-      - printf '[registries.forgejo]\ntoken = "Bearer %s"\n' "$GIT_AUTH_TOKEN" > $CARGO_HOME/credentials.toml
       - rustup component add clippy
       - cargo clippy --workspace -- -D warnings
 
@@ -61,8 +37,6 @@ steps:
       password:
         from_secret: git_auth_token
       tag: latest
-      build_args_from_env:
-        - PLUGIN_PASSWORD
     when:
       - event: push
         branch: main
