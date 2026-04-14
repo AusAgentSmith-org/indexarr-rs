@@ -1,6 +1,6 @@
 # Indexarr (Rust)
 
-Rust rewrite of Indexarr — decentralized torrent indexing with DHT crawling, content classification, gossip-based P2P sync, and contributor identity.
+Indexarr — decentralized torrent indexing with DHT crawling, content classification, gossip-based P2P sync, and contributor identity.
 
 ## Architecture
 
@@ -11,7 +11,7 @@ Rust rewrite of Indexarr — decentralized torrent indexing with DHT crawling, c
 - **PostgreSQL 17** (production)
 - **librtbit-dht** — DHT protocol (BEP 5), peer discovery
 - **librtbit-peer-protocol** — BitTorrent wire protocol (BEP 9/10)
-- **Vue 3 + Vite + TypeScript + Pinia** — Frontend SPA (unchanged from Python version)
+- **Vue 3 + Vite + TypeScript + Pinia** — Frontend SPA
 - **Docker** — Multi-stage build (Node 22 for UI, Rust for backend, Debian slim runtime)
 
 ## Development
