@@ -45,14 +45,15 @@ Section "${APP_NAME}" SecMain
     Abort
   ${EndIf}
 
-  ; Install binary and setup script
+  ; Install binary, setup script, and bundled PostgreSQL zip
   SetOutPath "$INSTDIR"
   File "${APP_EXE}"
   File "setup.ps1"
+  File "pgsql.zip"
 
-  ; Run the PowerShell setup script (handles PG download, initdb, service, .env)
-  DetailPrint "Running database setup (this takes a minute)..."
-  nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\setup.ps1" -InstallDir "$INSTDIR" -DataDir "$APPDATA\${APP_NAME}" -PgVersion "${PG_VERSION}" -PgPort "${PG_PORT}"'
+  ; Run the PowerShell setup script (extracts bundled PG, runs initdb, creates DB, writes .env)
+  DetailPrint "Setting up database (this takes a minute)..."
+  nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\setup.ps1" -InstallDir "$INSTDIR" -DataDir "$APPDATA\${APP_NAME}" -PgZip "$INSTDIR\pgsql.zip" -PgVersion "${PG_VERSION}" -PgPort "${PG_PORT}"'
   Pop $0
   ${If} $0 != 0
     MessageBox MB_OK|MB_ICONSTOP "Database setup failed (exit $0).$\r$\n$\r$\nInstall log:$\r$\n  $INSTDIR\install.log"

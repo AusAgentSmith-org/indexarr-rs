@@ -51,9 +51,15 @@ steps:
       - |
         # Build NSIS installer (tags only — for push/main we still produce the raw exe)
         if [ -n "$CI_COMMIT_TAG" ]; then
+          PG_VERSION="17.4"
+          PG_ZIP="installer/pgsql.zip"
+          echo "Downloading PostgreSQL $PG_VERSION binaries..."
+          curl -fL "https://get.enterprisedb.com/postgresql/postgresql-${PG_VERSION}-1-windows-x64-binaries.zip" -o "$PG_ZIP"
+          ls -lh "$PG_ZIP"
           cp target/x86_64-pc-windows-msvc/release/indexarr.exe installer/indexarr.exe
-          makensis -DVERSION="$CI_COMMIT_TAG" installer/windows.nsi
+          makensis -DVERSION="$CI_COMMIT_TAG" -DPGVERSION="$PG_VERSION" installer/windows.nsi
           ls -lh installer/indexarr-"$CI_COMMIT_TAG"-windows-x86_64-setup.exe
+          rm -f "$PG_ZIP" installer/indexarr.exe
         fi
     when:
       - event: push

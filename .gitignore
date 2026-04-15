@@ -6,6 +6,7 @@ data/
 ui/node_modules/
 # CI-generated installer artifacts
 installer/indexarr.exe
+installer/pgsql.zip
 installer/*.exe
 !installer/windows.nsi
 !installer/setup.ps1
