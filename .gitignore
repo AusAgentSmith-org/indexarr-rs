@@ -8,3 +8,5 @@ ui/node_modules/
 installer/indexarr.exe
 installer/*.exe
 !installer/windows.nsi
+!installer/setup.ps1
+!installer/linux-install.sh
