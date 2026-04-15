@@ -31,8 +31,10 @@ Remove-Item $PgZip -ErrorAction SilentlyContinue
 # ── 2. Initialise cluster ─────────────────────────────────────────────────────
 Log "Initialising database cluster at $pgData..."
 New-Item -ItemType Directory -Force -Path $pgData | Out-Null
-$pgPass  = [System.Convert]::ToBase64String(
-    [System.Security.Cryptography.RandomNumberGenerator]::GetBytes(24))
+$rng    = New-Object System.Security.Cryptography.RNGCryptoServiceProvider
+$bytes  = New-Object byte[] 24
+$rng.GetBytes($bytes)
+$pgPass = [System.Convert]::ToBase64String($bytes)
 $passTmp = "$env:TEMP\indexarr-pgpass.txt"
 $pgPass | Set-Content -NoNewline $passTmp
 
