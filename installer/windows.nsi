@@ -55,7 +55,7 @@ Section "${APP_NAME}" SecMain
   nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\setup.ps1" -InstallDir "$INSTDIR" -DataDir "$APPDATA\${APP_NAME}" -PgVersion "${PG_VERSION}" -PgPort "${PG_PORT}"'
   Pop $0
   ${If} $0 != 0
-    MessageBox MB_OK|MB_ICONSTOP "Database setup failed (exit $0).$\r$\n$\r$\nInstall log:$\r$\n  %TEMP%\indexarr-install.log"
+    MessageBox MB_OK|MB_ICONSTOP "Database setup failed (exit $0).$\r$\n$\r$\nInstall log:$\r$\n  $INSTDIR\install.log"
     Abort
   ${EndIf}
 

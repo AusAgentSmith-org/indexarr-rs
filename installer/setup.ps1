@@ -13,7 +13,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 # Write a persistent install log — share this file if something goes wrong
-$LogFile = "$env:TEMP\indexarr-install.log"
+$LogFile = "$InstallDir\install.log"
 Start-Transcript -Path $LogFile -Force
 Write-Host "Indexarr install log: $LogFile"
 $pgBin  = "$InstallDir\pgsql\bin"
