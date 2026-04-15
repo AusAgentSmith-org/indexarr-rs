@@ -11,6 +11,11 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+# Write a persistent install log — share this file if something goes wrong
+$LogFile = "$env:TEMP\indexarr-install.log"
+Start-Transcript -Path $LogFile -Force
+Write-Host "Indexarr install log: $LogFile"
 $pgBin  = "$InstallDir\pgsql\bin"
 $pgData = "$DataDir\pgdata"
 
@@ -75,3 +80,4 @@ INDEXARR_DATA_DIR=${DataDir}
 "@ | Set-Content "$InstallDir\.env" -Encoding UTF8
 
 Log "Setup complete."
+Stop-Transcript
