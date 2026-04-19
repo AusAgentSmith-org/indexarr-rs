@@ -245,9 +245,9 @@ volumes:
                     <div class="install-steps">
                         <div class="step-block">
                             <h4>One-line Install</h4>
-                            <pre><code>bash &lt;(curl -fsSL $(curl -s https://api.github.com/repos/AusAgentSmith-org/indexarr-rs/releases/latest \
-  | grep -o '"browser_download_url":"[^"]*linux-install[^"]*"' \
-  | cut -d'"' -f4))</code></pre>
+                            <pre><code>bash &lt;(curl -fsSL $(curl -s "https://api.github.com/repos/AusAgentSmith-org/indexarr-rs/releases?per_page=1" \
+  | grep -o '"browser_download_url": "[^"]*linux-install[^"]*"' \
+  | grep -o 'https://[^"]*'))</code></pre>
                         </div>
                         <div class="step-block">
                             <h4>Or download the tarball</h4>
