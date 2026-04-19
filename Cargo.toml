@@ -19,7 +19,7 @@ default-members = ["."]
 name = "indexarr"
 version = "0.1.2"
 edition = "2024"
-license = "MIT"
+license = "AGPL-3.0-only"
 description = "Decentralized torrent indexing with DHT crawling, content classification, and P2P sync"
 
 [[bin]]
@@ -47,7 +47,7 @@ parking_lot.workspace = true
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-license = "MIT"
+license = "AGPL-3.0-only"
 repository = "https://github.com/AusAgentSmith-org/indexarr-rs"
 
 [workspace.lints.clippy]
