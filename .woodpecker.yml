@@ -56,12 +56,16 @@ steps:
       - cargo build --release
       - ls -lh target/release/indexarr
       - |
-        TAG="${CI_COMMIT_TAG:-${CI_COMMIT_SHA:0:9}}"
+        if [ -n "$CI_COMMIT_TAG" ]; then
+          TAG="$CI_COMMIT_TAG"
+        else
+          TAG=$(echo $CI_COMMIT_SHA | head -c 9)
+        fi
         mkdir -p staging/ui
         cp target/release/indexarr staging/indexarr
         cp -r ui/dist staging/ui/dist
-        tar -czf "indexarr-${TAG}-linux-x86_64.tar.gz" -C staging .
-        ls -lh "indexarr-${TAG}-linux-x86_64.tar.gz"
+        tar -czf "indexarr-$TAG-linux-x86_64.tar.gz" -C staging .
+        ls -lh "indexarr-$TAG-linux-x86_64.tar.gz"
     when:
       - event: push
         branch: main
@@ -88,13 +92,13 @@ steps:
           TAG="$CI_COMMIT_TAG"
           PG_VERSION="17.4"
           echo "Downloading PostgreSQL $PG_VERSION binaries..."
-          curl -fL "https://get.enterprisedb.com/postgresql/postgresql-${PG_VERSION}-1-windows-x64-binaries.zip" \
+          curl -fL "https://get.enterprisedb.com/postgresql/postgresql-$PG_VERSION-1-windows-x64-binaries.zip" \
             -o installer/pgsql.zip
           cp target/x86_64-pc-windows-msvc/release/indexarr.exe installer/indexarr.exe
           # Copy built UI into installer directory for NSIS to pick up
           cp -r ui/dist installer/dist
           makensis -DVERSION="$TAG" -DPGVERSION="$PG_VERSION" installer/windows.nsi
-          ls -lh "installer/indexarr-${TAG}-windows-x86_64-setup.exe"
+          ls -lh "installer/indexarr-$TAG-windows-x86_64-setup.exe"
           rm -f installer/pgsql.zip installer/indexarr.exe
           rm -rf installer/dist
         fi
@@ -147,23 +151,23 @@ steps:
         REPO="AusAgentSmith-org/indexarr-rs"
 
         # Assemble release files
-        cp "indexarr-${TAG}-linux-x86_64.tar.gz" .
+        cp "indexarr-$TAG-linux-x86_64.tar.gz" .
 
         # Bake version into the install script
-        sed "s|^VERSION=.*|VERSION=\"${TAG}\"|" installer/linux-install.sh \
-          > "indexarr-${TAG}-linux-install.sh"
-        chmod +x "indexarr-${TAG}-linux-install.sh"
+        sed "s|^VERSION=.*|VERSION=\"$TAG\"|" installer/linux-install.sh \
+          > "indexarr-$TAG-linux-install.sh"
+        chmod +x "indexarr-$TAG-linux-install.sh"
 
         cp "target/x86_64-pc-windows-msvc/release/indexarr.exe" \
-           "indexarr-${TAG}-windows-x86_64.exe"
-        cp "installer/indexarr-${TAG}-windows-x86_64-setup.exe" .
+           "indexarr-$TAG-windows-x86_64.exe"
+        cp "installer/indexarr-$TAG-windows-x86_64-setup.exe" .
 
         sha256sum \
-          "indexarr-${TAG}-linux-x86_64.tar.gz" \
-          "indexarr-${TAG}-linux-install.sh" \
-          "indexarr-${TAG}-windows-x86_64.exe" \
-          "indexarr-${TAG}-windows-x86_64-setup.exe" \
-          > "SHA256SUMS-${TAG}.txt"
+          "indexarr-$TAG-linux-x86_64.tar.gz" \
+          "indexarr-$TAG-linux-install.sh" \
+          "indexarr-$TAG-windows-x86_64.exe" \
+          "indexarr-$TAG-windows-x86_64-setup.exe" \
+          > "SHA256SUMS-$TAG.txt"
 
         # Delete existing release if present
         EXISTING_ID=$(curl -s -H "Authorization: token $GH_TOKEN" \
@@ -174,8 +178,8 @@ steps:
         fi
 
         BODY="## Quick install (Linux)\n\`\`\`bash\ncurl -fsSL https://github.com/$REPO/releases/download/$TAG/indexarr-$TAG-linux-install.sh | sudo bash\n\`\`\`\n\n"
-        BODY="${BODY}## Docker\n\`\`\`\ndocker pull ghcr.io/$REPO:$TAG\n\`\`\`\n\n"
-        BODY="${BODY}SHA256 checksums in \`SHA256SUMS-${TAG}.txt\`"
+        BODY="$BODY## Docker\n\`\`\`\ndocker pull ghcr.io/$REPO:$TAG\n\`\`\`\n\n"
+        BODY="$BODY SHA256 checksums in \`SHA256SUMS-$TAG.txt\`"
 
         RELEASE_ID=$(curl -sf -X POST \
           -H "Authorization: token $GH_TOKEN" \
@@ -187,11 +191,11 @@ steps:
           { echo "ERROR: Failed to create release"; exit 1; }
 
         for file in \
-          "indexarr-${TAG}-linux-x86_64.tar.gz" \
-          "indexarr-${TAG}-linux-install.sh" \
-          "indexarr-${TAG}-windows-x86_64.exe" \
-          "indexarr-${TAG}-windows-x86_64-setup.exe" \
-          "SHA256SUMS-${TAG}.txt"; do
+          "indexarr-$TAG-linux-x86_64.tar.gz" \
+          "indexarr-$TAG-linux-install.sh" \
+          "indexarr-$TAG-windows-x86_64.exe" \
+          "indexarr-$TAG-windows-x86_64-setup.exe" \
+          "SHA256SUMS-$TAG.txt"; do
           [ -f "$file" ] || continue
           echo "Uploading $file..."
           curl -sf -X POST \
@@ -215,7 +219,7 @@ steps:
         curl -sf -H "Content-Type: application/json" -d "{
           \"embeds\": [{
             \"title\": \"Build Successful\",
-            \"description\": \"**${CI_REPO}** — [$HASH]($CI_REPO_URL/commit/$CI_COMMIT_SHA)\",
+            \"description\": \"**$CI_REPO** — [$HASH]($CI_REPO_URL/commit/$CI_COMMIT_SHA)\",
             \"color\": 5025616,
             \"footer\": {\"text\": \"$CI_REPO • $CI_COMMIT_AUTHOR\"},
             \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
@@ -235,7 +239,7 @@ steps:
         curl -sf -H "Content-Type: application/json" -d "{
           \"embeds\": [{
             \"title\": \"Build Failed\",
-            \"description\": \"**${CI_REPO}** — [$HASH]($CI_REPO_URL/commit/$CI_COMMIT_SHA)\",
+            \"description\": \"**$CI_REPO** — [$HASH]($CI_REPO_URL/commit/$CI_COMMIT_SHA)\",
             \"color\": 15548997,
             \"footer\": {\"text\": \"$CI_REPO • $CI_COMMIT_AUTHOR\"},
             \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
