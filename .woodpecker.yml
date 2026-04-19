@@ -150,9 +150,6 @@ steps:
         TAG="$CI_COMMIT_TAG"
         REPO="AusAgentSmith-org/indexarr-rs"
 
-        # Assemble release files
-        cp "indexarr-$TAG-linux-x86_64.tar.gz" .
-
         # Bake version into the install script
         sed "s|^VERSION=.*|VERSION=\"$TAG\"|" installer/linux-install.sh \
           > "indexarr-$TAG-linux-install.sh"
