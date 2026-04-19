@@ -1,0 +1,131 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/indexarr-core",
+    "crates/indexarr-identity",
+    "crates/indexarr-search",
+    "crates/indexarr-web",
+    "crates/indexarr-parser",
+    "crates/indexarr-classifier",
+    "crates/indexarr-dht",
+    "crates/indexarr-announcer",
+    "crates/indexarr-sync",
+    "crates/indexarr-tmdb",
+]
+
+default-members = ["."]
+
+[package]
+name = "indexarr"
+version = "0.1.2"
+edition = "2024"
+license = "MIT"
+description = "Decentralized torrent indexing with DHT crawling, content classification, and P2P sync"
+
+[[bin]]
+name = "indexarr"
+path = "src/main.rs"
+
+[dependencies]
+indexarr-core = { path = "crates/indexarr-core" }
+indexarr-identity = { path = "crates/indexarr-identity" }
+indexarr-search = { path = "crates/indexarr-search" }
+indexarr-web = { path = "crates/indexarr-web" }
+
+indexarr-dht = { path = "crates/indexarr-dht" }
+indexarr-announcer = { path = "crates/indexarr-announcer" }
+indexarr-sync = { path = "crates/indexarr-sync" }
+
+clap.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+dotenvy.workspace = true
+parking_lot.workspace = true
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/AusAgentSmith-org/indexarr-rs"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[workspace.lints.rust]
+unused = "warn"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+tokio-stream = "0.1"
+tokio-util = "0.7"
+
+# Web framework
+axum = { version = "0.8", features = ["ws", "multipart"] }
+axum-extra = "0.12"
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace", "fs", "set-header", "compression-gzip"] }
+http = "1"
+
+# Database
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "chrono", "json", "uuid", "migrate", "derive", "macros"] }
+
+# HTTP client
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+quick-xml = "0.39"
+serde_yaml = "0.9"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "registry", "time"] }
+
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Crypto
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+sha2 = "0.10"
+base32 = "0.5"
+base64 = "0.22"
+rand = "0.8"
+
+# Concurrency
+dashmap = "6"
+parking_lot = "0.12"
+
+# Util
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+url = "2"
+hex = "0.4"
+dotenvy = "0.15"
+
+# Internal crates
+indexarr-core = { path = "crates/indexarr-core" }
+indexarr-identity = { path = "crates/indexarr-identity" }
+indexarr-search = { path = "crates/indexarr-search" }
+indexarr-web = { path = "crates/indexarr-web" }
+indexarr-parser = { path = "crates/indexarr-parser" }
+indexarr-classifier = { path = "crates/indexarr-classifier" }
+indexarr-dht = { path = "crates/indexarr-dht" }
+indexarr-announcer = { path = "crates/indexarr-announcer" }
+indexarr-sync = { path = "crates/indexarr-sync" }
+indexarr-tmdb = { path = "crates/indexarr-tmdb" }
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+debug = false
+lto = "thin"

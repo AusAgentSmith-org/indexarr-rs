@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 500" width="900" height="500">
+  <defs>
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#22262e"/>
+      <stop offset="100%" style="stop-color:#1a1d23"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Window frame -->
+  <rect width="900" height="500" rx="12" fill="url(#bg-grad)"/>
+
+  <!-- Title bar -->
+  <rect width="900" height="40" rx="12" fill="#2a2f38"/>
+  <rect y="28" width="900" height="12" fill="#2a2f38"/>
+  <circle cx="20" cy="20" r="6" fill="#ff5f57"/>
+  <circle cx="40" cy="20" r="6" fill="#febc2e"/>
+  <circle cx="60" cy="20" r="6" fill="#28c840"/>
+  <text x="450" y="25" text-anchor="middle" fill="#a8adb8" font-family="sans-serif" font-size="13">Indexarr - Dashboard</text>
+
+  <!-- Sidebar -->
+  <rect x="0" y="40" width="200" height="460" fill="#1e2127"/>
+  <rect x="0" y="488" width="200" height="12" rx="0" fill="#1e2127"/>
+
+  <!-- Sidebar items -->
+  <rect x="16" y="60" width="168" height="32" rx="6" fill="rgba(33,150,243,0.1)"/>
+  <text x="32" y="81" fill="#2196F3" font-family="sans-serif" font-size="13" font-weight="600">Dashboard</text>
+  <text x="32" y="115" fill="#a8adb8" font-family="sans-serif" font-size="13">Search</text>
+  <text x="32" y="145" fill="#a8adb8" font-family="sans-serif" font-size="13">Recent</text>
+  <text x="32" y="175" fill="#a8adb8" font-family="sans-serif" font-size="13">DHT Status</text>
+  <text x="32" y="205" fill="#a8adb8" font-family="sans-serif" font-size="13">Sync</text>
+  <text x="32" y="235" fill="#a8adb8" font-family="sans-serif" font-size="13">Settings</text>
+
+  <!-- Main content area -->
+  <!-- Stats cards -->
+  <rect x="220" y="56" width="155" height="80" rx="8" fill="#282c34" stroke="#363b44" stroke-width="1"/>
+  <text x="236" y="80" fill="#6c7280" font-family="sans-serif" font-size="11">TOTAL TORRENTS</text>
+  <text x="236" y="112" fill="#e4e6eb" font-family="sans-serif" font-size="28" font-weight="700">142,847</text>
+
+  <rect x="391" y="56" width="155" height="80" rx="8" fill="#282c34" stroke="#363b44" stroke-width="1"/>
+  <text x="407" y="80" fill="#6c7280" font-family="sans-serif" font-size="11">DHT NODES</text>
+  <text x="407" y="112" fill="#2196F3" font-family="sans-serif" font-size="28" font-weight="700">4</text>
+
+  <rect x="562" y="56" width="155" height="80" rx="8" fill="#282c34" stroke="#363b44" stroke-width="1"/>
+  <text x="578" y="80" fill="#6c7280" font-family="sans-serif" font-size="11">SYNC PEERS</text>
+  <text x="578" y="112" fill="#2196F3" font-family="sans-serif" font-size="28" font-weight="700">12</text>
+
+  <rect x="733" y="56" width="155" height="80" rx="8" fill="#282c34" stroke="#363b44" stroke-width="1"/>
+  <text x="749" y="80" fill="#6c7280" font-family="sans-serif" font-size="11">TODAY</text>
+  <text x="749" y="112" fill="#e4e6eb" font-family="sans-serif" font-size="28" font-weight="700">+2,341</text>
+
+  <!-- Table header -->
+  <rect x="220" y="156" width="668" height="36" rx="6" fill="#2a2f38"/>
+  <text x="236" y="179" fill="#6c7280" font-family="sans-serif" font-size="12" font-weight="600">NAME</text>
+  <text x="560" y="179" fill="#6c7280" font-family="sans-serif" font-size="12" font-weight="600">TYPE</text>
+  <text x="650" y="179" fill="#6c7280" font-family="sans-serif" font-size="12" font-weight="600">SIZE</text>
+  <text x="740" y="179" fill="#6c7280" font-family="sans-serif" font-size="12" font-weight="600">SEEDS</text>
+  <text x="810" y="179" fill="#6c7280" font-family="sans-serif" font-size="12" font-weight="600">AGE</text>
+
+  <!-- Table rows -->
+  <line x1="220" y1="196" x2="888" y2="196" stroke="#363b44" stroke-width="1"/>
+  <text x="236" y="217" fill="#e4e6eb" font-family="sans-serif" font-size="13">Ubuntu 24.04 Desktop amd64.iso</text>
+  <rect x="555" y="204" width="52" height="20" rx="4" fill="rgba(33,150,243,0.15)"/>
+  <text x="565" y="218" fill="#2196F3" font-family="sans-serif" font-size="11">App</text>
+  <text x="650" y="217" fill="#a8adb8" font-family="sans-serif" font-size="13">4.7 GB</text>
+  <text x="740" y="217" fill="#28c840" font-family="sans-serif" font-size="13">2,847</text>
+  <text x="810" y="217" fill="#a8adb8" font-family="sans-serif" font-size="13">2h ago</text>
+
+  <line x1="220" y1="232" x2="888" y2="232" stroke="#363b44" stroke-width="1"/>
+  <text x="236" y="253" fill="#e4e6eb" font-family="sans-serif" font-size="13">Big Buck Bunny 1080p BluRay x264</text>
+  <rect x="555" y="240" width="52" height="20" rx="4" fill="rgba(59,130,246,0.15)"/>
+  <text x="561" y="254" fill="#3b82f6" font-family="sans-serif" font-size="11">Movie</text>
+  <text x="650" y="253" fill="#a8adb8" font-family="sans-serif" font-size="13">1.2 GB</text>
+  <text x="740" y="253" fill="#28c840" font-family="sans-serif" font-size="13">1,203</text>
+  <text x="810" y="253" fill="#a8adb8" font-family="sans-serif" font-size="13">5h ago</text>
+
+  <line x1="220" y1="268" x2="888" y2="268" stroke="#363b44" stroke-width="1"/>
+  <text x="236" y="289" fill="#e4e6eb" font-family="sans-serif" font-size="13">Sintel 2010 4K HDR DV x265</text>
+  <rect x="555" y="276" width="52" height="20" rx="4" fill="rgba(59,130,246,0.15)"/>
+  <text x="561" y="290" fill="#3b82f6" font-family="sans-serif" font-size="11">Movie</text>
+  <text x="650" y="289" fill="#a8adb8" font-family="sans-serif" font-size="13">8.1 GB</text>
+  <text x="740" y="289" fill="#28c840" font-family="sans-serif" font-size="13">892</text>
+  <text x="810" y="289" fill="#a8adb8" font-family="sans-serif" font-size="13">1d ago</text>
+
+  <line x1="220" y1="304" x2="888" y2="304" stroke="#363b44" stroke-width="1"/>
+  <text x="236" y="325" fill="#e4e6eb" font-family="sans-serif" font-size="13">LibreOffice 24.2.1 Linux x86_64.AppImage</text>
+  <rect x="555" y="312" width="52" height="20" rx="4" fill="rgba(33,150,243,0.15)"/>
+  <text x="565" y="326" fill="#2196F3" font-family="sans-serif" font-size="11">App</text>
+  <text x="650" y="325" fill="#a8adb8" font-family="sans-serif" font-size="13">312 MB</text>
+  <text x="740" y="325" fill="#28c840" font-family="sans-serif" font-size="13">547</text>
+  <text x="810" y="325" fill="#a8adb8" font-family="sans-serif" font-size="13">1d ago</text>
+
+  <line x1="220" y1="340" x2="888" y2="340" stroke="#363b44" stroke-width="1"/>
+  <text x="236" y="361" fill="#e4e6eb" font-family="sans-serif" font-size="13">Blender 4.0 Tutorial Series Complete</text>
+  <rect x="555" y="348" width="52" height="20" rx="4" fill="rgba(168,85,247,0.15)"/>
+  <text x="561" y="362" fill="#a855f7" font-family="sans-serif" font-size="11">Other</text>
+  <text x="650" y="361" fill="#a8adb8" font-family="sans-serif" font-size="13">24.6 GB</text>
+  <text x="740" y="361" fill="#28c840" font-family="sans-serif" font-size="13">234</text>
+  <text x="810" y="361" fill="#a8adb8" font-family="sans-serif" font-size="13">2d ago</text>
+
+  <!-- Bottom bar -->
+  <rect x="220" y="460" width="668" height="40" rx="0" fill="#1e2127"/>
+  <text x="236" y="485" fill="#6c7280" font-family="sans-serif" font-size="11">Showing 1-25 of 142,847 torrents</text>
+  <text x="800" y="485" fill="#2196F3" font-family="sans-serif" font-size="11">Sync: Active</text>
+</svg>

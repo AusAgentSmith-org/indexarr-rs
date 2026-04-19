@@ -1,0 +1,59 @@
+# Indexarr (Rust) — All workers
+#
+# Usage:
+#   docker compose up -d
+#   docker compose logs -f indexarr
+
+name: indexarr
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: indexarr
+      POSTGRES_PASSWORD: indexarr
+      POSTGRES_DB: indexarr
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U indexarr"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  indexarr:
+    build:
+      context: .
+    # image: ghcr.io/ausagentsmith-org/indexarr-rs:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      INDEXARR_DB_URL: postgres://indexarr:indexarr@postgres:5432/indexarr
+      INDEXARR_DB_BACKEND: postgresql
+      INDEXARR_HOST: "0.0.0.0"
+      INDEXARR_PORT: "8080"
+      INDEXARR_DHT_INSTANCES: "${INDEXARR_DHT_INSTANCES:-4}"
+      INDEXARR_DHT_BASE_PORT: "6881"
+      INDEXARR_RESOLVE_WORKERS: "${INDEXARR_RESOLVE_WORKERS:-20}"
+      INDEXARR_ANNOUNCER_ENABLED: "${INDEXARR_ANNOUNCER_ENABLED:-true}"
+      INDEXARR_ANNOUNCER_POOL_SIZE: "${INDEXARR_ANNOUNCER_POOL_SIZE:-1000}"
+      INDEXARR_SYNC_ENABLED: "${INDEXARR_SYNC_ENABLED:-false}"
+      INDEXARR_SYNC_PEERS: "${INDEXARR_SYNC_PEERS:-[]}"
+      INDEXARR_TORZNAB_API_KEY: "${INDEXARR_TORZNAB_API_KEY:-}"
+      INDEXARR_TMDB_API_KEY: "${INDEXARR_TMDB_API_KEY:-}"
+      INDEXARR_CONTRIBUTOR_RECOVERY_KEY: "${INDEXARR_CONTRIBUTOR_RECOVERY_KEY:-}"
+    ports:
+      - "8080:8080"
+      - "6881-6884:6881-6884/udp"
+      - "6890:6890"
+      - "6895:6895/udp"
+    volumes:
+      - indexarr-data:/app/data
+    command: ["--all"]
+
+volumes:
+  pgdata:
+  indexarr-data:

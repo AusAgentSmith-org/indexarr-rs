@@ -1,0 +1,38 @@
+[package]
+name = "indexarr-web"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+indexarr-core.workspace = true
+indexarr-identity.workspace = true
+indexarr-search.workspace = true
+axum.workspace = true
+axum-extra.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+http.workspace = true
+sqlx.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+quick-xml.workspace = true
+chrono.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+url.workspace = true
+parking_lot.workspace = true
+indexarr-parser = { path = "../indexarr-parser" }
+indexarr-classifier = { path = "../indexarr-classifier" }
+indexarr-sync = { path = "../indexarr-sync" }
+sha1 = "0.10"
+sha2.workspace = true
+hex.workspace = true
+base32.workspace = true
+rand.workspace = true

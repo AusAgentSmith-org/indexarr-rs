@@ -1,0 +1,642 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Indexarr",
+    "version": "0.1.0",
+    "description": "Decentralized torrent indexing with DHT crawling, content classification, gossip-based P2P sync, and contributor identity.\n\n## Authentication\n\nMost endpoints require no authentication. Admin endpoints (API key management, nuke review, debug logging) require an API key passed via the `X-Api-Key` header. The Torznab endpoint supports an optional `apikey` query parameter.\n\n## Base URL\n\nAll REST endpoints are prefixed with `/api/v1/`. The Torznab endpoint is at `/api/torznab`. GraphQL is at `/graphql`."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local development"
+    }
+  ],
+  "tags": [
+    { "name": "Search", "description": "Full-text search and discovery" },
+    { "name": "Torrents", "description": "Torrent detail, tags, import, upload" },
+    { "name": "Stats", "description": "Index statistics and worker status" },
+    { "name": "Sync", "description": "P2P gossip sync status and data" },
+    { "name": "Identity", "description": "Contributor identity and epoch management" },
+    { "name": "Social", "description": "Comments, votes, and nuke suggestions" },
+    { "name": "System", "description": "Administration and log streaming" },
+    { "name": "Torznab", "description": "Torznab/Newznab XML API for *arr integration" }
+  ],
+  "paths": {
+    "/api/v1/search": {
+      "get": {
+        "tags": ["Search"],
+        "summary": "Full-text search",
+        "description": "Search the torrent index with full-text queries and up to 16 filters. Returns results with optional faceted counts.",
+        "parameters": [
+          { "name": "q", "in": "query", "schema": { "type": "string" }, "description": "Search query" },
+          { "name": "content_type", "in": "query", "schema": { "type": "string", "enum": ["movie", "tv", "music", "game", "app", "book", "xxx", "anime", "audiobook", "comic", "other"] }, "description": "Filter by content type" },
+          { "name": "resolution", "in": "query", "schema": { "type": "string", "enum": ["4320p", "2160p", "1080p", "1080i", "720p", "576p", "480p", "sd"] }, "description": "Filter by video resolution" },
+          { "name": "codec", "in": "query", "schema": { "type": "string", "enum": ["x265", "x264", "h265", "h264", "xvid", "divx", "av1", "mpeg2"] }, "description": "Filter by video codec" },
+          { "name": "video_source", "in": "query", "schema": { "type": "string" }, "description": "Filter by video source (BluRay, WEB-DL, etc.)" },
+          { "name": "hdr", "in": "query", "schema": { "type": "string" }, "description": "Filter by HDR format" },
+          { "name": "year", "in": "query", "schema": { "type": "integer" }, "description": "Filter by exact year" },
+          { "name": "year_min", "in": "query", "schema": { "type": "integer" }, "description": "Filter by minimum year" },
+          { "name": "year_max", "in": "query", "schema": { "type": "integer" }, "description": "Filter by maximum year" },
+          { "name": "tag", "in": "query", "schema": { "type": "string" }, "description": "Filter by tag" },
+          { "name": "imdb_id", "in": "query", "schema": { "type": "string" }, "description": "Filter by IMDB ID" },
+          { "name": "tmdb_id", "in": "query", "schema": { "type": "integer" }, "description": "Filter by TMDB ID" },
+          { "name": "season", "in": "query", "schema": { "type": "integer" }, "description": "Filter by season number" },
+          { "name": "episode", "in": "query", "schema": { "type": "integer" }, "description": "Filter by episode number" },
+          { "name": "min_seeders", "in": "query", "schema": { "type": "integer" }, "description": "Minimum seeder count" },
+          { "name": "audio_codec", "in": "query", "schema": { "type": "string" }, "description": "Filter by audio codec" },
+          { "name": "sort", "in": "query", "schema": { "type": "string", "enum": ["relevance", "name", "size", "seeds", "date"], "default": "relevance" }, "description": "Sort field" },
+          { "name": "order", "in": "query", "schema": { "type": "string", "enum": ["asc", "desc"], "default": "desc" }, "description": "Sort order" },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50, "minimum": 1, "maximum": 100 }, "description": "Results per page" },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 }, "description": "Pagination offset" },
+          { "name": "facets", "in": "query", "schema": { "type": "boolean" }, "description": "Include faceted counts in response" }
+        ],
+        "responses": {
+          "200": { "description": "Search results with optional facets" }
+        }
+      }
+    },
+    "/api/v1/recent": {
+      "get": {
+        "tags": ["Search"],
+        "summary": "Recently resolved torrents",
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50, "minimum": 1, "maximum": 100 } }
+        ],
+        "responses": { "200": { "description": "List of recently resolved torrents" } }
+      }
+    },
+    "/api/v1/announced/recent": {
+      "get": {
+        "tags": ["Search"],
+        "summary": "Recently announced torrents",
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50, "minimum": 1, "maximum": 100 } }
+        ],
+        "responses": { "200": { "description": "List of recently announced torrents" } }
+      }
+    },
+    "/api/v1/queue": {
+      "get": {
+        "tags": ["Search"],
+        "summary": "Unresolved queue",
+        "description": "List of discovered info hashes awaiting metadata resolution.",
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 } }
+        ],
+        "responses": { "200": { "description": "Unresolved torrent queue" } }
+      }
+    },
+    "/api/v1/torrent/{info_hash}": {
+      "get": {
+        "tags": ["Torrents"],
+        "summary": "Torrent detail",
+        "description": "Full torrent record including files, content classification, tags, and vote summary.",
+        "parameters": [
+          { "name": "info_hash", "in": "path", "required": true, "schema": { "type": "string" }, "description": "40-character hex info hash" }
+        ],
+        "responses": {
+          "200": { "description": "Torrent detail with files, content, tags, votes" },
+          "404": { "description": "Torrent not found" }
+        }
+      }
+    },
+    "/api/v1/torrents/tags": {
+      "post": {
+        "tags": ["Torrents"],
+        "summary": "Add tags",
+        "description": "Add tags to one or more torrents.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "info_hashes": { "type": "array", "items": { "type": "string" } },
+                  "tags": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Tags added" } }
+      },
+      "delete": {
+        "tags": ["Torrents"],
+        "summary": "Remove tags",
+        "description": "Remove tags from one or more torrents.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "info_hashes": { "type": "array", "items": { "type": "string" } },
+                  "tags": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Tags removed" } }
+      }
+    },
+    "/api/v1/torrents": {
+      "delete": {
+        "tags": ["Torrents"],
+        "summary": "Delete torrents",
+        "parameters": [
+          { "name": "info_hashes", "in": "query", "schema": { "type": "array", "items": { "type": "string" } }, "description": "Info hashes to delete" }
+        ],
+        "responses": { "200": { "description": "Torrents deleted" } }
+      }
+    },
+    "/api/v1/import": {
+      "post": {
+        "tags": ["Torrents"],
+        "summary": "Bulk import",
+        "description": "Import an array of torrent records.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "info_hash": { "type": "string" },
+                    "name": { "type": "string" },
+                    "size": { "type": "integer" },
+                    "source": { "type": "string" },
+                    "files": { "type": "array", "items": { "type": "object" } }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Import results" } }
+      }
+    },
+    "/api/v1/upload": {
+      "post": {
+        "tags": ["Torrents"],
+        "summary": "Upload .torrent files",
+        "description": "Upload and parse one or more .torrent files.",
+        "requestBody": {
+          "required": true,
+          "content": { "multipart/form-data": { "schema": { "type": "object", "properties": { "files": { "type": "array", "items": { "type": "string", "format": "binary" } } } } } }
+        },
+        "responses": { "200": { "description": "Upload results" } }
+      }
+    },
+    "/api/v1/upload/magnets": {
+      "post": {
+        "tags": ["Torrents"],
+        "summary": "Add magnet links",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "magnets": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Magnets queued for resolution" } }
+      }
+    },
+    "/api/v1/categories": {
+      "get": {
+        "tags": ["Torrents"],
+        "summary": "Category tree",
+        "description": "Returns the Newznab category tree used for Torznab integration.",
+        "responses": { "200": { "description": "Category tree" } }
+      }
+    },
+    "/api/v1/stats": {
+      "get": {
+        "tags": ["Stats"],
+        "summary": "Index statistics",
+        "description": "Total torrents, resolved count, breakdown by source and content type.",
+        "responses": { "200": { "description": "Index statistics" } }
+      }
+    },
+    "/api/v1/dht/status": {
+      "get": {
+        "tags": ["Stats"],
+        "summary": "DHT and sync status",
+        "description": "DHT engine status, node counts, and sync worker status.",
+        "responses": { "200": { "description": "DHT and sync status" } }
+      }
+    },
+    "/api/v1/scraper/status": {
+      "get": {
+        "tags": ["Stats"],
+        "summary": "Scraper worker status",
+        "responses": { "200": { "description": "Scraper status and source breakdown" } }
+      }
+    },
+    "/api/v1/announcer/status": {
+      "get": {
+        "tags": ["Stats"],
+        "summary": "Announcer worker status",
+        "responses": { "200": { "description": "Announcer status and revalidation metrics" } }
+      }
+    },
+    "/api/v1/sync/latest": {
+      "get": {
+        "tags": ["Sync"],
+        "summary": "Latest delta info",
+        "description": "Returns the latest delta content hash and sequence number.",
+        "responses": { "200": { "description": "Latest delta info" } }
+      }
+    },
+    "/api/v1/sync/status": {
+      "get": {
+        "tags": ["Sync"],
+        "summary": "Sync status",
+        "description": "Whether sync is enabled, current sequence, peer count, and intervals.",
+        "responses": { "200": { "description": "Sync status" } }
+      }
+    },
+    "/api/v1/sync/manifest": {
+      "get": {
+        "tags": ["Sync"],
+        "summary": "Delta manifest",
+        "description": "List of available delta files and peer metadata for gossip protocol.",
+        "responses": { "200": { "description": "Manifest with delta list and peer info" } }
+      }
+    },
+    "/api/v1/sync/peers": {
+      "get": {
+        "tags": ["Sync"],
+        "summary": "Peer table",
+        "description": "Current peer table for peer exchange (PEX).",
+        "responses": { "200": { "description": "Peer list with health status" } }
+      }
+    },
+    "/api/v1/sync/dashboard": {
+      "get": {
+        "tags": ["Sync"],
+        "summary": "Sync dashboard",
+        "description": "Detailed sync dashboard with activity log and peer statistics.",
+        "responses": { "200": { "description": "Dashboard data" } }
+      }
+    },
+    "/api/v1/sync/delta/{content_hash}": {
+      "get": {
+        "tags": ["Sync"],
+        "summary": "Download delta",
+        "description": "Download a delta file by its content hash. Returns gzip-compressed NDJSON.",
+        "parameters": [
+          { "name": "content_hash", "in": "path", "required": true, "schema": { "type": "string" }, "description": "SHA-256 content hash of the delta" }
+        ],
+        "responses": {
+          "200": { "description": "Delta file (gzip or NDJSON)" },
+          "404": { "description": "Delta not found" }
+        }
+      }
+    },
+    "/api/v1/identity/status": {
+      "get": {
+        "tags": ["Identity"],
+        "summary": "Identity status",
+        "description": "Whether contributor identity is initialized, the contributor ID, and recovery key availability.",
+        "responses": { "200": { "description": "Identity status" } }
+      }
+    },
+    "/api/v1/identity/restore": {
+      "post": {
+        "tags": ["Identity"],
+        "summary": "Restore identity",
+        "description": "Restore a contributor identity from a base32-encoded recovery key.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "recovery_key": { "type": "string", "description": "Base32-encoded Ed25519 private key" }
+                },
+                "required": ["recovery_key"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Identity restored" } }
+      }
+    },
+    "/api/v1/identity/acknowledge": {
+      "post": {
+        "tags": ["Identity"],
+        "summary": "Acknowledge onboarding",
+        "description": "Mark the first-boot onboarding as complete.",
+        "responses": { "200": { "description": "Acknowledged" } }
+      }
+    },
+    "/api/v1/identity/epoch": {
+      "get": {
+        "tags": ["Identity"],
+        "summary": "Current epoch",
+        "description": "Current swarm epoch number, reason, grace period, and policy.",
+        "responses": { "200": { "description": "Epoch info" } }
+      }
+    },
+    "/api/v1/identity/bans": {
+      "get": {
+        "tags": ["Identity"],
+        "summary": "Ban list",
+        "description": "List of banned contributor IDs and reasons.",
+        "responses": { "200": { "description": "Ban list" } }
+      }
+    },
+    "/api/v1/torrent/{info_hash}/comments": {
+      "get": {
+        "tags": ["Social"],
+        "summary": "List comments",
+        "description": "Threaded comments for a torrent.",
+        "parameters": [
+          { "name": "info_hash", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Comment thread" } }
+      },
+      "post": {
+        "tags": ["Social"],
+        "summary": "Create comment",
+        "parameters": [
+          { "name": "info_hash", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "body": { "type": "string" },
+                  "nickname": { "type": "string" },
+                  "parent_id": { "type": "integer", "nullable": true }
+                },
+                "required": ["body"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Comment created" } }
+      }
+    },
+    "/api/v1/torrent/{info_hash}/comments/{comment_id}": {
+      "delete": {
+        "tags": ["Social"],
+        "summary": "Delete comment",
+        "description": "Soft-delete own comment (matched by fingerprint).",
+        "parameters": [
+          { "name": "info_hash", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "comment_id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "Comment deleted" } }
+      }
+    },
+    "/api/v1/torrent/{info_hash}/votes": {
+      "get": {
+        "tags": ["Social"],
+        "summary": "Vote summary",
+        "description": "Upvotes, downvotes, and the current user's vote.",
+        "parameters": [
+          { "name": "info_hash", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Vote summary" } }
+      }
+    },
+    "/api/v1/torrent/{info_hash}/vote": {
+      "post": {
+        "tags": ["Social"],
+        "summary": "Cast vote",
+        "parameters": [
+          { "name": "info_hash", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "value": { "type": "integer", "enum": [1, -1] }
+                },
+                "required": ["value"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Vote cast or toggled" } }
+      }
+    },
+    "/api/v1/torrent/{info_hash}/nuke": {
+      "post": {
+        "tags": ["Social"],
+        "summary": "Suggest nuke",
+        "description": "Suggest a torrent for removal. One suggestion per fingerprint.",
+        "parameters": [
+          { "name": "info_hash", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": { "type": "string" }
+                },
+                "required": ["reason"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Nuke suggestion created" } }
+      }
+    },
+    "/api/v1/nuke/pending": {
+      "get": {
+        "tags": ["Social"],
+        "summary": "Pending nuke suggestions",
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 } }
+        ],
+        "responses": { "200": { "description": "Unreviewed nuke suggestions grouped by torrent" } }
+      }
+    },
+    "/api/v1/nuke/{suggestion_id}/review": {
+      "post": {
+        "tags": ["Social"],
+        "summary": "Review nuke suggestion",
+        "description": "Approve or dismiss a nuke suggestion. Requires API key.",
+        "parameters": [
+          { "name": "suggestion_id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "outcome": { "type": "string", "enum": ["nuked", "dismissed"] }
+                },
+                "required": ["outcome"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Suggestion reviewed" } }
+      }
+    },
+    "/api/v1/system/status": {
+      "get": {
+        "tags": ["System"],
+        "summary": "System status",
+        "description": "Version, database info, uptime, active workers, and hash counts.",
+        "responses": { "200": { "description": "System status" } }
+      }
+    },
+    "/api/v1/system/apikey": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Current API key (masked)",
+        "responses": { "200": { "description": "Masked API key" } }
+      }
+    },
+    "/api/v1/system/apikey/generate": {
+      "post": {
+        "tags": ["System"],
+        "summary": "Generate new API key",
+        "description": "Generates a new API key. Requires admin authentication.",
+        "responses": { "200": { "description": "New API key" } }
+      }
+    },
+    "/api/v1/system/logs/recent": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Recent log entries",
+        "parameters": [
+          { "name": "count", "in": "query", "schema": { "type": "integer", "default": 500, "minimum": 1, "maximum": 5000 } },
+          { "name": "category", "in": "query", "schema": { "type": "string" }, "description": "Filter by log category" }
+        ],
+        "responses": { "200": { "description": "Log entries" } }
+      }
+    },
+    "/api/v1/system/logs/categories": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Log categories",
+        "responses": { "200": { "description": "Available log categories" } }
+      }
+    },
+    "/api/v1/system/logs/debug": {
+      "post": {
+        "tags": ["System"],
+        "summary": "Toggle debug logging",
+        "description": "Enable or disable debug-level logging. Requires admin authentication.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": { "type": "boolean" }
+                },
+                "required": ["enabled"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Debug logging toggled" } }
+      }
+    },
+    "/api/v1/system/sync/preferences": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Sync import preferences",
+        "responses": { "200": { "description": "Current sync category preferences" } }
+      },
+      "post": {
+        "tags": ["System"],
+        "summary": "Set sync preferences",
+        "description": "Configure which categories to import during sync. Requires admin authentication.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "import_categories": { "type": "array", "items": { "type": "string" } },
+                  "sync_comments": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Preferences updated" } }
+      }
+    },
+    "/api/torznab": {
+      "get": {
+        "tags": ["Torznab"],
+        "summary": "Torznab/Newznab API",
+        "description": "Torznab-compatible XML API for integration with Sonarr, Radarr, Lidarr, Readarr, and Prowlarr. Supports 30 Newznab categories.\n\n**Functions:** `caps` (capabilities), `search` (general), `tvsearch` (TV), `movie`, `music`, `book`.",
+        "parameters": [
+          { "name": "t", "in": "query", "required": true, "schema": { "type": "string", "enum": ["caps", "search", "tvsearch", "movie", "music", "book"] }, "description": "API function" },
+          { "name": "q", "in": "query", "schema": { "type": "string" }, "description": "Search query" },
+          { "name": "cat", "in": "query", "schema": { "type": "string" }, "description": "Comma-separated category IDs" },
+          { "name": "season", "in": "query", "schema": { "type": "string" }, "description": "Season number (tvsearch)" },
+          { "name": "ep", "in": "query", "schema": { "type": "string" }, "description": "Episode number (tvsearch)" },
+          { "name": "imdbid", "in": "query", "schema": { "type": "string" }, "description": "IMDB ID (tvsearch, movie)" },
+          { "name": "tmdbid", "in": "query", "schema": { "type": "string" }, "description": "TMDB ID (movie)" },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 100, "minimum": 1, "maximum": 100 } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 } },
+          { "name": "apikey", "in": "query", "schema": { "type": "string" }, "description": "API key (if authentication is enabled)" }
+        ],
+        "responses": {
+          "200": { "description": "XML response (RSS 2.0 with Torznab extensions)" }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Health check",
+        "description": "Readiness check returning status, version, and ready flag.",
+        "responses": {
+          "200": {
+            "description": "Health status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string" },
+                    "version": { "type": "string" },
+                    "ready": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

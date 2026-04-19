@@ -1,0 +1,69 @@
+# Indexarr Content Classifier Rules
+#
+# Custom rules to override or extend the built-in classifier.
+# Rules are evaluated in order; first match wins for set_type.
+# Tags are cumulative across all matching rules.
+#
+# Available match conditions:
+#   name: regex pattern (case-insensitive)
+#   keyword: simple substring match
+#   resolution: exact match (e.g., "2160p")
+#   source: exact match (e.g., "BluRay")
+#   year_min: minimum year (inclusive)
+#   year_max: maximum year (inclusive)
+#
+# Available actions:
+#   set_type: override content type (movie, tv_show, music, ebook, etc.)
+#   confidence: override confidence (0.0-1.0)
+#   add_tags: list of tags to add
+#   remove_tags: list of tags to remove
+#   ban: true to reject this content
+#   delete: true to reject and request deletion
+#   reason: explanation for ban/delete
+
+rules:
+  # Example: Tag all REMUX content
+  - match:
+      keyword: "REMUX"
+    add_tags:
+      - "quality:remux"
+
+  # Example: Tag 4K content
+  - match:
+      resolution: "2160p"
+    add_tags:
+      - "quality:4k"
+
+  # Example: Tag HDR variants
+  - match:
+      keyword: "DolbyVision"
+    add_tags:
+      - "hdr:dolby-vision"
+
+  # Example: Ban CAM/TS quality (uncomment to enable)
+  # - match:
+  #     source: "CAM"
+  #   ban: true
+  #   reason: "CAM quality not accepted"
+
+  # Example: Classify anime from Nyaa
+  - match:
+      name: "\\[(?:SubsPlease|Erai-raws|HorribleSubs)\\]"
+    set_type: "tv_show"
+    confidence: 0.9
+    add_tags:
+      - "anime"
+      - "fansub"
+
+  # Example: Identify documentary series
+  - match:
+      name: "(?:documentary|docu[.-]series)"
+    add_tags:
+      - "documentary"
+
+  # Example: Complete series packs
+  - match:
+      name: "(?:complete|full)\\s+(?:series|collection|pack)"
+    set_type: "tv_show"
+    add_tags:
+      - "complete-series"

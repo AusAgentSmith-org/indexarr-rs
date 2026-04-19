@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Indexarr - Decentralized torrent indexing with DHT crawling, content classification, gossip-based P2P sync, and contributor identity.">
+    <meta name="keywords" content="indexarr, torrent, indexer, DHT, decentralized, P2P, gossip, sync, torznab, sonarr, radarr, prowlarr">
+    <title>Indexarr - Decentralized Torrent Indexing</title>
+    <link rel="icon" type="image/jpeg" href="img/logo.jpg">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="container nav-container">
+            <a href="#" class="nav-brand">
+                <img src="img/logo.jpg" alt="Indexarr" class="nav-logo">
+                <span>Indexarr</span>
+            </a>
+            <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="#home">Home</a></li>
+                <li><a href="#features">Features</a></li>
+                <li><a href="#download">Download</a></li>
+                <li><a href="#support">Support</a></li>
+                <li><a href="demo/">Demo</a></li>
+                <li><a href="docs/api/">API Docs</a></li>
+                <li><a href="faq.html">FAQ</a></li>
+                <li><a href="https://github.com/AusAgentSmith-org/indexarr-rs/pkgs/container/indexarr-rs" target="_blank" rel="noopener">Container</a></li>
+                <li><a href="https://github.com/AusAgentSmith-org/indexarr-rs" target="_blank" rel="noopener">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero" id="home">
+        <div class="container">
+            <div class="hero-content">
+                <img src="img/logo.jpg" alt="Indexarr Logo" class="hero-logo">
+                <h1 class="hero-title">Indexarr</h1>
+                <p class="hero-subtitle">A Community-Powered Torrent Index</p>
+                <p class="hero-description">
+                    Users upload torrents. Nodes sync with each other. Everyone gets the full index.
+                    Indexarr is a decentralized torrent indexer where every contributor grows the catalog
+                    for the entire network &mdash; no central authority, no accounts, no tracking.
+                    Fully compatible with the *arr ecosystem.
+                </p>
+                <div class="hero-buttons">
+                    <a href="#download" class="btn btn-primary">Download</a>
+                    <a href="demo/" class="btn btn-outline">Live Demo</a>
+                    <a href="#features" class="btn btn-outline">Learn More</a>
+                </div>
+            </div>
+            <div class="hero-screenshot">
+                <img src="img/screenshot.svg" alt="Indexarr Dashboard" class="screenshot-img">
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features" id="features">
+        <div class="container">
+            <h2 class="section-header">Features</h2>
+            <div class="feature-grid">
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                    </div>
+                    <h3>Community Uploads</h3>
+                    <p>Anyone can upload <code>.torrent</code> files or paste magnet links to contribute to the shared index. Every upload is automatically classified and made searchable across the entire network. No accounts, no tracking.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                        </svg>
+                    </div>
+                    <h3>Network-Wide Sync</h3>
+                    <p>Uploads on any node are automatically shared across the entire network via gossip protocol. Run a node and you get the full index &mdash; every contributor's uploads, not just your own.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                            <polyline points="10 9 9 9 8 9"/>
+                        </svg>
+                    </div>
+                    <h3>Smart Classification</h3>
+                    <p>Every torrent is parsed and classified automatically &mdash; content type, resolution, codec, source, and matched against TMDB. Search by category, filter by quality, find what you need.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="16 18 22 12 16 6"/>
+                            <polyline points="8 6 2 12 8 18"/>
+                            <line x1="14" y1="4" x2="10" y2="20"/>
+                        </svg>
+                    </div>
+                    <h3>*arr Ecosystem</h3>
+                    <p>Full Torznab/Newznab API with 30 categories. Plug directly into Sonarr, Radarr, Lidarr, Readarr, and Prowlarr. Your self-hosted indexer, fed by the community.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        </svg>
+                    </div>
+                    <h3>No Tracking</h3>
+                    <p>No user accounts, no IP logging, no upload history, no telemetry. Searches happen locally on your node. The network only shares torrent metadata &mdash; never who searched for what.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                            <path d="M2 12h20"/>
+                        </svg>
+                    </div>
+                    <h3>DHT Discovery</h3>
+                    <p>Optionally crawl the BitTorrent DHT to automatically discover and index torrents from the public network. Supplement community uploads with passive discovery.</p>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section class="how-it-works" id="how-it-works">
+        <div class="container">
+            <h2 class="section-header">How It Works</h2>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h3>Upload</h3>
+                    <p>Contributors across the network upload .torrent files and magnet links to their nodes.</p>
+                </div>
+                <div class="step-arrow">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                        <polyline points="12 5 19 12 12 19"/>
+                    </svg>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h3>Classify</h3>
+                    <p>Each node automatically parses and classifies uploads &mdash; content type, quality, codec &mdash; ready for search.</p>
+                </div>
+                <div class="step-arrow">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                        <polyline points="12 5 19 12 12 19"/>
+                    </svg>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h3>Sync</h3>
+                    <p>Gossip protocol spreads every upload across the network. Your node gets everyone else's contributions automatically.</p>
+                </div>
+                <div class="step-arrow">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                        <polyline points="12 5 19 12 12 19"/>
+                    </svg>
+                </div>
+                <div class="step">
+                    <div class="step-number">4</div>
+                    <h3>Search</h3>
+                    <p>The full community index is searchable on your node &mdash; via the web UI, REST API, or Torznab for your *arr stack.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Download Section -->
+    <section class="download" id="download">
+        <div class="container">
+            <h2 class="section-header">Download</h2>
+
+            <div class="download-tabs">
+                <button class="tab-btn active" data-tab="docker">Docker</button>
+                <button class="tab-btn" data-tab="linux">Linux</button>
+                <button class="tab-btn" data-tab="windows">Windows</button>
+                <button class="tab-btn" data-tab="source">Source</button>
+            </div>
+
+            <div class="tab-content">
+                <!-- Docker -->
+                <div class="tab-pane active" id="tab-docker">
+                    <h3>Docker <span class="badge">Recommended</span></h3>
+                    <p>The easiest way to run Indexarr. Available on <a href="https://github.com/AusAgentSmith-org/indexarr-rs/pkgs/container/indexarr-rs" target="_blank" rel="noopener">GitHub Container Registry</a>.</p>
+                    <div class="install-steps">
+                        <div class="step-block">
+                            <h4>Quick Start</h4>
+                            <pre><code>docker compose up -d
+# Access the UI at http://localhost:8080</code></pre>
+                        </div>
+                        <div class="step-block">
+                            <h4>Docker Compose</h4>
+                            <pre><code>services:
+  indexarr:
+    image: ghcr.io/ausagentsmith-org/indexarr-rs:latest
+    container_name: indexarr
+    ports:
+      - "8080:8080"
+      - "6881-6884:6881-6884/udp"
+      - "6895:6895/udp"
+    volumes:
+      - indexarr-data:/app/data
+    environment:
+      - INDEXARR_DB_URL=postgres://indexarr:indexarr@postgres:5432/indexarr
+      - INDEXARR_SYNC_ENABLED=true
+    restart: unless-stopped
+
+volumes:
+  indexarr-data:</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Linux -->
+                <div class="tab-pane" id="tab-linux">
+                    <h3>Linux</h3>
+                    <p>Install directly on Linux with the one-line installer. Requires PostgreSQL (installed automatically).</p>
+                    <div class="install-steps">
+                        <div class="step-block">
+                            <h4>One-line Install</h4>
+                            <pre><code>curl -fsSL https://indexarr.net/downloads/latest/linux-install.sh | sudo bash</code></pre>
+                        </div>
+                        <div class="step-block">
+                            <h4>Or download the binary directly</h4>
+                            <pre><code>curl -fsSL https://indexarr.net/downloads/latest/indexarr-linux-x86_64 \
+  -o indexarr && chmod +x indexarr
+INDEXARR_DB_URL=postgres://user:pass@localhost/indexarr ./indexarr --all</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Windows -->
+                <div class="tab-pane" id="tab-windows">
+                    <h3>Windows</h3>
+                    <p>Install on Windows with the bundled installer. Includes PostgreSQL &mdash; no separate install required.</p>
+                    <div class="install-steps">
+                        <div class="step-block">
+                            <h4>Windows Installer <span class="badge">Recommended</span></h4>
+                            <pre><code># Download the installer from GitHub Releases:
+# indexarr-&lt;version&gt;-windows-x86_64-setup.exe
+# Bundles PostgreSQL and registers a Windows service.</code></pre>
+                        </div>
+                        <div class="step-block">
+                            <h4>Raw binary</h4>
+                            <pre><code># indexarr-&lt;version&gt;-windows-x86_64.exe
+indexarr.exe --all</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Source -->
+                <div class="tab-pane" id="tab-source">
+                    <h3>Source</h3>
+                    <p>Build from source. Requires Rust 1.85+ and Node 22+ (for the UI).</p>
+                    <div class="install-steps">
+                        <div class="step-block">
+                            <h4>Clone &amp; Build</h4>
+                            <pre><code>git clone https://github.com/AusAgentSmith-org/indexarr-rs.git
+cd indexarr-rs
+
+# Build the UI
+cd ui && npm install && npm run build && cd ..
+
+# Build the binary
+cargo build --release</code></pre>
+                        </div>
+                        <div class="step-block">
+                            <h4>Run</h4>
+                            <pre><code>INDEXARR_DB_URL=postgres://indexarr:indexarr@localhost/indexarr \
+  ./target/release/indexarr --all
+
+# Or run individual workers
+./target/release/indexarr --workers http_server,dht_crawler</code></pre>
+                        </div>
+                        <div class="step-block">
+                            <h4>Run tests</h4>
+                            <pre><code>cargo test --workspace</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Integration Section -->
+    <section class="integrations" id="integrations">
+        <div class="container">
+            <h2 class="section-header">Integrations</h2>
+            <p class="section-subtitle">Indexarr works seamlessly with your existing *arr stack and torrent clients</p>
+            <div class="integration-grid">
+                <div class="integration-card integration-card-featured">
+                    <div class="integration-name">rustTorrent</div>
+                    <p>Browse &amp; download directly from the <a href="https://rusttorrent.dev/" target="_blank" rel="noopener">rustTorrent</a> web UI. Native integration &mdash; search, preview, and start downloads without leaving the client.</p>
+                </div>
+                <div class="integration-card">
+                    <div class="integration-name">Sonarr</div>
+                    <p>TV show management</p>
+                </div>
+                <div class="integration-card">
+                    <div class="integration-name">Radarr</div>
+                    <p>Movie management</p>
+                </div>
+                <div class="integration-card">
+                    <div class="integration-name">Lidarr</div>
+                    <p>Music management</p>
+                </div>
+                <div class="integration-card">
+                    <div class="integration-name">Readarr</div>
+                    <p>Book management</p>
+                </div>
+                <div class="integration-card">
+                    <div class="integration-name">Prowlarr</div>
+                    <p>Indexer management</p>
+                </div>
+                <div class="integration-card">
+                    <div class="integration-name">GraphQL</div>
+                    <p>Flexible API queries</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Support Section -->
+    <section class="support" id="support">
+        <div class="container">
+            <h2 class="section-header">Support</h2>
+            <div class="support-grid">
+                <a href="https://github.com/AusAgentSmith-org/indexarr-rs/wiki" target="_blank" rel="noopener" class="support-card">
+                    <div class="support-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                        </svg>
+                    </div>
+                    <h3>Wiki</h3>
+                    <p>Documentation, guides, and FAQ</p>
+                </a>
+                <a href="https://github.com/AusAgentSmith-org/indexarr-rs/issues" target="_blank" rel="noopener" class="support-card">
+                    <div class="support-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="8" x2="12" y2="12"/>
+                            <line x1="12" y1="16" x2="12.01" y2="16"/>
+                        </svg>
+                    </div>
+                    <h3>GitHub Issues</h3>
+                    <p>Report bugs and request features</p>
+                </a>
+                <a href="https://github.com/AusAgentSmith-org/indexarr-rs/pkgs/container/indexarr-rs" target="_blank" rel="noopener" class="support-card">
+                    <div class="support-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 12c0-1.1-.2-2.2-.5-3.1l1.5-.9-1-1.7-1.5.9c-.7-.8-1.6-1.5-2.6-2V3.5h-2v1.3c-.5-.1-1-.2-1.5-.2s-1 .1-1.5.2V3.5h-2v1.7c-1 .5-1.9 1.2-2.6 2l-1.5-.9-1 1.7 1.5.9c-.3.9-.5 2-.5 3.1H4.5v2h1.8c.2 1.1.5 2.2 1 3.1l-1.5.9 1 1.7 1.5-.9c.7.8 1.6 1.5 2.6 2v1.7h2v-1.3c.5.1 1 .2 1.5.2s1-.1 1.5-.2v1.3h2v-1.7c1-.5 1.9-1.2 2.6-2l1.5.9 1-1.7-1.5-.9c.5-.9.8-2 1-3.1h1.8v-2H21z"/>
+                            <circle cx="13.4" cy="13" r="3"/>
+                        </svg>
+                    </div>
+                    <h3>Container Registry</h3>
+                    <p>Container images and tags</p>
+                </a>
+                <a href="https://github.com/AusAgentSmith-org/indexarr-rs/discussions" target="_blank" rel="noopener" class="support-card">
+                    <div class="support-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                        </svg>
+                    </div>
+                    <h3>Discussions</h3>
+                    <p>Community chat and support</p>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer" id="footer">
+        <div class="container">
+            <p>&copy; 2025 Indexarr. All rights reserved.</p>
+            <p class="footer-links">
+                <a href="https://github.com/AusAgentSmith-org/indexarr-rs" target="_blank" rel="noopener">GitHub</a>
+                <span class="separator">&middot;</span>
+                <a href="https://github.com/AusAgentSmith-org/indexarr-rs/pkgs/container/indexarr-rs" target="_blank" rel="noopener">Container</a>
+                <span class="separator">&middot;</span>
+                <a href="docs/api/">API Docs</a>
+                <span class="separator">&middot;</span>
+                <a href="faq.html">FAQ</a>
+                <span class="separator">&middot;</span>
+                <a href="https://github.com/AusAgentSmith-org/indexarr-rs/issues" target="_blank" rel="noopener">Issues</a>
+            </p>
+            <p class="footer-related">Also by AusAgentSmith <span class="separator">&middot;</span> <a href="https://www.rustnzb.dev/" target="_blank" rel="noopener">rustnzb</a> <span class="separator">&middot;</span> <a href="https://rusttorrent.dev/" target="_blank" rel="noopener">rustTorrent</a></p>
+        </div>
+    </footer>
+
+    <script src="js/main.js"></script>
+</body>
+</html>

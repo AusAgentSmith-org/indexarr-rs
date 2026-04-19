@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Indexarr FAQ - Frequently asked questions about privacy, IP logging, data handling, and more.">
+    <title>Indexarr - FAQ</title>
+    <link rel="icon" type="image/jpeg" href="img/logo.jpg">
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .faq-page {
+            padding-top: var(--nav-height);
+            min-height: 100vh;
+        }
+
+        .faq-header {
+            padding: 48px 0 32px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            text-align: center;
+        }
+
+        .faq-header h1 {
+            font-size: 2.25rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .faq-header p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .faq-content {
+            padding: 48px 0 80px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .faq-section {
+            margin-bottom: 48px;
+        }
+
+        .faq-section-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 24px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .faq-section-icon {
+            width: 28px;
+            height: 28px;
+            color: var(--accent);
+            flex-shrink: 0;
+        }
+
+        .faq-section-icon svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .faq-item {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            margin-bottom: 12px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+
+        .faq-item:hover {
+            border-color: var(--border-light);
+        }
+
+        .faq-item.open {
+            border-color: var(--accent);
+        }
+
+        .faq-question {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 24px;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: var(--font);
+            text-align: left;
+            cursor: pointer;
+            gap: 16px;
+            transition: color 0.2s;
+        }
+
+        .faq-question:hover {
+            color: var(--accent);
+        }
+
+        .faq-chevron {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+            color: var(--text-muted);
+            transition: transform 0.3s, color 0.2s;
+        }
+
+        .faq-item.open .faq-chevron {
+            transform: rotate(180deg);
+            color: var(--accent);
+        }
+
+        .faq-answer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .faq-answer-inner {
+            padding: 0 24px 20px;
+            color: var(--text-secondary);
+            line-height: 1.7;
+            font-size: 0.95rem;
+        }
+
+        .faq-answer-inner p {
+            margin-bottom: 12px;
+        }
+
+        .faq-answer-inner p:last-child {
+            margin-bottom: 0;
+        }
+
+        .faq-answer-inner ul {
+            margin: 8px 0 12px 20px;
+        }
+
+        .faq-answer-inner li {
+            margin-bottom: 6px;
+        }
+
+        .faq-answer-inner code {
+            background: var(--bg-code);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+
+        .faq-answer-inner strong {
+            color: var(--text-primary);
+        }
+
+        .faq-answer-inner a {
+            color: var(--accent);
+        }
+
+        .faq-callout {
+            background: var(--accent-dim);
+            border: 1px solid rgba(33, 150, 243, 0.2);
+            border-radius: var(--radius);
+            padding: 16px 20px;
+            margin: 12px 0;
+            font-size: 0.9rem;
+        }
+
+        .faq-callout strong {
+            color: var(--accent);
+        }
+
+        @media (max-width: 768px) {
+            .faq-header h1 { font-size: 1.75rem; }
+            .faq-content { padding: 32px 0 60px; }
+            .faq-question { padding: 16px 20px; font-size: 0.95rem; }
+            .faq-answer-inner { padding: 0 20px 16px; }
+            .faq-section-title { font-size: 1.25rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="container nav-container">
+            <a href="./" class="nav-brand">
+                <img src="img/logo.jpg" alt="Indexarr" class="nav-logo">
+                <span>Indexarr</span>
+            </a>
+            <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="./">Home</a></li>
+                <li><a href="./#features">Features</a></li>
+                <li><a href="./#download">Download</a></li>
+                <li><a href="demo/">Demo</a></li>
+                <li><a href="docs/api/">API Docs</a></li>
+                <li><a href="faq.html" class="active">FAQ</a></li>
+                <li><a href="https://hub.docker.com/r/ausagentsmith/indexarr" target="_blank" rel="noopener">Docker Hub</a></li>
+                <li><a href="https://github.com/AusAgentSmith-org/indexarr-rs" target="_blank" rel="noopener">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="faq-page">
+        <div class="faq-header">
+            <div class="container">
+                <h1>Frequently Asked Questions</h1>
+                <p>Common questions about Indexarr, privacy, data handling, and how the network operates.</p>
+            </div>
+        </div>
+
+        <div class="faq-content container">
+
+            <!-- Privacy & Data Section -->
+            <div class="faq-section">
+                <h2 class="faq-section-title">
+                    <span class="faq-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        </svg>
+                    </span>
+                    Privacy &amp; Data
+                </h2>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        Does Indexarr log my IP address?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            <p><strong>No.</strong> Indexarr does not log, store, or track IP addresses of users who search or browse the index. There is no access log, analytics, or telemetry built into the application.</p>
+                            <p>The web server logs that Docker or your OS might produce are standard reverse proxy behaviour and are under your control &mdash; Indexarr itself writes nothing to disk about who connects.</p>
+                            <p>The <strong>bootstrap node</strong> (<code>bootstrap.indexarr.net</code>) that helps new nodes discover peers also does not log IP addresses in the Indexarr application. Standard web server access logs may exist on the VPS (as with any web server), but Indexarr's database stores only peer URLs and contributor IDs &mdash; never IP addresses.</p>
+                            <div class="faq-callout">
+                                <strong>Key point:</strong> Indexarr is self-hosted. Your searches, browsing, and downloads are processed entirely on your own hardware. The bootstrap node only facilitates peer discovery for sync &mdash; it never sees your search queries.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        Does Indexarr phone home or send telemetry?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            <p><strong>No telemetry, crash reporting, update checking, or usage analytics of any kind.</strong> Indexarr does not phone home for tracking purposes.</p>
+                            <p>The outbound connections your node makes depend on which workers you enable:</p>
+                            <ul>
+                                <li><strong>Bootstrap node</strong> &mdash; if sync is enabled, your node contacts <code>bootstrap.indexarr.net</code> to discover other peers. This is a lightweight Indexarr relay that participates in the gossip protocol and helps nodes find each other. It exchanges only torrent metadata and peer lists &mdash; never search queries or user data</li>
+                                <li><strong>DHT crawling</strong> &mdash; standard BitTorrent DHT traffic (if the crawler worker is enabled)</li>
+                                <li><strong>P2P sync</strong> &mdash; gossip with peers discovered via the bootstrap, DHT, or peer exchange</li>
+                                <li><strong>TMDB lookups</strong> &mdash; optional metadata enrichment (if configured with a TMDB API key)</li>
+                            </ul>
+                            <p>If you run Indexarr with sync disabled (<code>--workers http_server,dht_crawler,resolver</code>), no connections are made to any Indexarr-operated infrastructure.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        What data does Indexarr store?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            <p>Indexarr stores only torrent metadata &mdash; never actual file content. The database contains:</p>
+                            <ul>
+                                <li><strong>Torrent records:</strong> info hash, name, size, file list, seed/peer counts</li>
+                                <li><strong>Classification data:</strong> content type, title, year, resolution, codec (parsed from names)</li>
+                                <li><strong>Sync state:</strong> peer URLs and sync sequence numbers for gossip protocol</li>
+                                <li><strong>Your contributor identity:</strong> a locally-generated Ed25519 keypair (never leaves your node unless you choose to sync)</li>
+                            </ul>
+                            <p>No user accounts, search history, download history, or personally identifiable information is stored.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        How does the anonymous fingerprint system work?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            <p>For social features (comments, votes, nuke suggestions), Indexarr generates a <strong>one-way fingerprint</strong> from your connection metadata. This is a SHA-256 hash &mdash; it cannot be reversed to recover your IP address or any other identifying information.</p>
+                            <p>The fingerprint is used solely to prevent duplicate votes and allow users to delete their own comments. It is not linked to any account or identity system.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        Can other nodes on the sync network see my searches?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            <p><strong>No.</strong> The gossip sync protocol only exchanges torrent metadata (names, hashes, classifications). Search queries are processed entirely locally on your node and are never transmitted to any peer.</p>
+                            <p>When your node syncs, it shares <em>what torrents it has indexed</em> &mdash; not what you or anyone else has searched for, clicked on, or downloaded.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        Is there any user registration or account system?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            <p><strong>No.</strong> Indexarr has no user accounts, no registration, no login, and no passwords. The only identity concept is the <strong>contributor ID</strong> &mdash; a cryptographic keypair generated locally on first boot that identifies your node (not you) in the sync network.</p>
+                            <p>Access control is handled via an optional API key for admin operations. The web UI and search API require no authentication by default.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Network & Sync Section -->
+            <div class="faq-section">
+                <h2 class="faq-section-title">
+                    <span class="faq-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                        </svg>
+                    </span>
+                    Network &amp; Sync
+                </h2>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        How does the gossip sync protocol work?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            <p>Indexarr uses a bidirectional gossip protocol with three loops:</p>
+                            <ul>
+                                <li><strong>Export:</strong> Your node periodically packages new torrent discoveries into signed, content-addressed delta files</li>
+                                <li><strong>Discovery:</strong> Your node finds peers via the bootstrap node, DHT, HTTP peer exchange (PEX), or optionally XMPP</li>
+                                <li><strong>Gossip:</strong> Your node picks a handful of random healthy peers each round, <strong>pulls</strong> their manifests and downloads any new deltas it hasn't seen, then <strong>pushes</strong> its own new deltas back to those peers</li>
+                            </ul>
+                            <p>The push phase is what makes the protocol bidirectional &mdash; after pulling from a peer, your node offers any deltas that peer hasn't seen yet. This is especially important for nodes behind NAT or firewalls that can't accept inbound connections: they can still contribute data to the network by pushing to peers they've connected to. Pushed deltas are authenticated with Ed25519 signatures and checked against the ban list before acceptance.</p>
+                            <p>New nodes start by contacting the <strong>bootstrap node</strong> (<code>bootstrap.indexarr.net</code>) to get an initial peer list. From there, peer exchange propagates and the network becomes fully decentralized &mdash; the bootstrap is just another peer. All deltas are cryptographically signed with your contributor identity. Content addressing (SHA-256) means identical data is never transferred twice.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        What is the bootstrap node?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            <p>The bootstrap node (<code>bootstrap.indexarr.net</code>) is a lightweight, public Indexarr instance running on a VPS that serves as the initial entry point for new nodes joining the sync network. It runs three services:</p>
+                            <ul>
+                                <li><strong>Indexarr (sync only)</strong> &mdash; Participates in the gossip protocol to relay torrent metadata deltas between nodes. It does <em>not</em> crawl the DHT or resolve metadata &mdash; it only relays what other nodes share. When nodes behind NAT push their deltas to the bootstrap, it caches them in memory so other peers can pull them without needing a direct connection to the original node</li>
+                                <li><strong>Caddy</strong> &mdash; Provides TLS termination with automatic Let's Encrypt certificates</li>
+                                <li><strong>Prosody (XMPP)</strong> &mdash; Optional MUC-based peer discovery channel where nodes publish their contributor ID and URL</li>
+                            </ul>
+                            <p>The bootstrap node's primary role is <strong>peer discovery and relay</strong>. When your node first starts with sync enabled, it contacts the bootstrap to get an initial list of peers via peer exchange (PEX). It also acts as a relay for nodes that can't accept inbound connections &mdash; those nodes push their deltas to the bootstrap, which then serves them to other peers on their behalf. Once your node has discovered other peers directly, it gossips with the full mesh &mdash; the bootstrap is just another peer at that point.</p>
+                            <div class="faq-callout">
+                                <strong>What the bootstrap does NOT do:</strong> It does not store IP addresses in its database (only peer URLs and contributor IDs). It does not see your search queries. It does not crawl or index content. It does not track which nodes request which data. If the bootstrap goes offline, existing nodes continue syncing via peers they've already discovered.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        What is a contributor ID?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            <p>A contributor ID is a short identifier (format: <code>TN-xxxxxxxx</code>) derived from an Ed25519 public key generated on your node at first boot. It identifies your node in the sync network so other nodes can verify the authenticity of your shared data.</p>
+                            <p>The private key never leaves your machine. A recovery key (base32-encoded) is shown once during onboarding so you can restore your identity if you reinstall.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        Can a node be banned from the network?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            <p>Yes. The epoch system includes a ban list of contributor IDs. When a contributor is banned (e.g., for distributing harmful metadata), all nodes in the network will reject deltas signed by that identity.</p>
+                            <p>Bans are enforced at the contributor identity level &mdash; not by IP address. This means bans are robust against IP changes while also avoiding any need to track network addresses.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        Do I need to enable sync? Can I run a standalone node?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            <p><strong>Sync is entirely optional.</strong> By default, Indexarr runs with <code>http_server</code>, <code>dht_crawler</code>, and <code>resolver</code> workers. Your node will crawl the DHT independently and build its own index without connecting to any Indexarr infrastructure.</p>
+                            <p>To enable sync, set <code>INDEXARR_SYNC_ENABLED=true</code> and add <code>sync</code> to your workers list. Your node will then contact the bootstrap node to discover peers and begin exchanging torrent metadata via the gossip protocol. You can disable sync at any time without losing data.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        What ports does Indexarr use?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            <ul>
+                                <li><strong>8080 (TCP)</strong> &mdash; Web UI, REST API, Torznab, GraphQL</li>
+                                <li><strong>6881-6884 (UDP)</strong> &mdash; DHT crawler nodes</li>
+                                <li><strong>6890 (TCP)</strong> &mdash; libtorrent for sync delta seeding/downloading</li>
+                                <li><strong>6895 (UDP)</strong> &mdash; Lightweight DHT node for sync peer discovery</li>
+                            </ul>
+                            <p>Only port 8080 is required. The UDP ports are only needed if you enable DHT crawling or sync peer discovery.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DHT & Crawling Section -->
+            <div class="faq-section">
+                <h2 class="faq-section-title">
+                    <span class="faq-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                            <path d="M2 12h20"/>
+                        </svg>
+                    </span>
+                    DHT &amp; Crawling
+                </h2>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        What does the DHT crawler actually do?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            <p>The DHT crawler passively observes the public BitTorrent Distributed Hash Table &mdash; the same network used by every BitTorrent client. It discovers info hashes (unique torrent identifiers) being announced by peers worldwide.</p>
+                            <p>Once an info hash is discovered, the resolver worker fetches the torrent's metadata (name, file list, size) using BEP 9 (metadata extension). This metadata is then parsed, classified, and stored in your local database.</p>
+                            <p>The crawler does <strong>not</strong> download any actual file content &mdash; only metadata.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        Does the DHT crawler expose my IP to the network?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            <p>The DHT crawler participates in the BitTorrent DHT as a standard node, which means your node's IP is visible to other DHT participants &mdash; the same as running any BitTorrent client. This is inherent to how DHT works.</p>
+                            <p>If this is a concern, you can:</p>
+                            <ul>
+                                <li>Run the crawler behind a VPN (see the <code>docker-compose.node-c.yml</code> Gluetun example)</li>
+                                <li>Disable the crawler entirely and rely on sync from other nodes for your index</li>
+                                <li>Use the web UI and API workers only (<code>--workers http_server</code>)</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        Does Indexarr download torrent content?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            <p><strong>No.</strong> Indexarr is an indexer, not a torrent client. It only collects and stores <em>metadata</em> &mdash; torrent names, file lists, sizes, and info hashes. It never downloads, seeds, or transfers actual file content.</p>
+                            <p>The only BitTorrent file transfers Indexarr performs are sync delta files between Indexarr nodes (small NDJSON files containing torrent metadata).</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Uploads Section -->
+            <div class="faq-section">
+                <h2 class="faq-section-title">
+                    <span class="faq-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                    </span>
+                    Uploads
+                </h2>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        How does uploading torrents work?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            <p>You can add torrents to your index in two ways:</p>
+                            <ul>
+                                <li><strong>.torrent file upload</strong> &mdash; Upload a <code>.torrent</code> file via the web UI or API. Indexarr extracts the metadata (name, file list, size, info hash) and runs the content classification pipeline. The original <code>.torrent</code> file is <strong>not stored</strong> &mdash; only the extracted metadata is kept</li>
+                                <li><strong>Magnet link</strong> &mdash; Submit a magnet URI. The info hash is extracted and queued for the resolver to fetch metadata via BEP 9</li>
+                            </ul>
+                            <p>In both cases, only metadata is indexed. Indexarr never downloads or stores actual file content.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        Is anything tracked when I upload?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            <p><strong>No.</strong> Indexarr does not log who uploaded what. There are no user accounts, no upload history, and no IP logging. The uploaded torrent is tagged with <code>source="uploaded"</code> to distinguish it from DHT-discovered or synced content, but nothing links that record back to you.</p>
+                            <p>If your node has a contributor identity and sync is enabled, the torrent will carry your node's contributor ID in sync deltas &mdash; this identifies your <em>node</em>, not you personally, and is the same identity attached to all torrents your node exports.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        Is Indexarr a torrent tracker?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            <p><strong>No.</strong> Indexarr is an <em>indexer</em>, not a <em>tracker</em>. These are fundamentally different things:</p>
+                            <ul>
+                                <li>A <strong>tracker</strong> coordinates peers for a specific torrent &mdash; it tells downloaders which IP addresses are seeding a file. Indexarr does not do this</li>
+                                <li>An <strong>indexer</strong> catalogues torrent metadata (names, sizes, categories) so you can search and discover content. This is what Indexarr does</li>
+                            </ul>
+                            <p>Indexarr does not run an HTTP or UDP tracker. It cannot facilitate downloads on its own. All torrents in the index rely on <strong>external trackers</strong> or the BitTorrent DHT for peer coordination.</p>
+                            <div class="faq-callout">
+                                <strong>Important:</strong> When you upload a <code>.torrent</code> file, the torrent must reference one or more working trackers (or rely on DHT). Indexarr extracts the info hash and metadata for search purposes, but the actual peer-to-peer swarm depends entirely on the trackers embedded in the torrent or DHT availability.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        What are the risks of uploading private torrents?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            <p><strong>Do not upload private tracker torrents to Indexarr.</strong> While Indexarr detects and stores the <code>private</code> flag from <code>.torrent</code> files, uploading private tracker content carries serious risks:</p>
+                            <ul>
+                                <li><strong>Account ban</strong> &mdash; Private trackers strictly prohibit sharing their <code>.torrent</code> files or metadata outside the tracker. Uploading one to Indexarr (especially with sync enabled) could result in your tracker account being banned</li>
+                                <li><strong>Metadata propagation</strong> &mdash; If sync is enabled, the torrent's metadata (name, info hash, file list) will be shared across the Indexarr network via the gossip protocol. You cannot recall it once exported</li>
+                                <li><strong>Passkey exposure</strong> &mdash; Some private trackers embed unique passkeys in announce URLs within <code>.torrent</code> files. While Indexarr does not extract or store tracker URLs from uploads, the safest approach is to never upload private tracker <code>.torrent</code> files at all</li>
+                            </ul>
+                            <div class="faq-callout">
+                                <strong>Rule of thumb:</strong> Only upload torrents that use public trackers or are intended for public distribution. If a torrent came from a private tracker, do not upload it to Indexarr.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        What happens to uploaded torrents when sync is enabled?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            <p>Uploaded torrents are treated the same as any other torrent in your index. If sync is enabled, their <strong>metadata</strong> (info hash, name, file list, size, classification, tags) will be included in your next export delta and shared with peers via the gossip protocol.</p>
+                            <p>This means other Indexarr nodes on the network will be able to search for and find the torrent's metadata. The actual <code>.torrent</code> file is never shared &mdash; only the extracted metadata. Other nodes' users would still need access to a working tracker or DHT to actually download the content.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Integration & Usage Section -->
+            <div class="faq-section">
+                <h2 class="faq-section-title">
+                    <span class="faq-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="16 18 22 12 16 6"/>
+                            <polyline points="8 6 2 12 8 18"/>
+                            <line x1="14" y1="4" x2="10" y2="20"/>
+                        </svg>
+                    </span>
+                    Integration &amp; Usage
+                </h2>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        How do I add Indexarr to Sonarr/Radarr/Prowlarr?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            <p>Indexarr implements the full Torznab/Newznab API with 30 categories. To add it:</p>
+                            <ul>
+                                <li>In <strong>Prowlarr:</strong> Add a new Indexer &rarr; Generic Torznab &rarr; URL: <code>http://your-indexarr:8080/api/torznab</code></li>
+                                <li>In <strong>Sonarr/Radarr</strong> (direct): Settings &rarr; Indexers &rarr; Add Torznab &rarr; same URL</li>
+                            </ul>
+                            <p>If you've set an API key in Indexarr, provide it in the API Key field. Otherwise, leave it blank.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        What database should I use?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            <p><strong>SQLite</strong> works well for small to medium deployments (under ~500K torrents). Set <code>INDEXARR_DB_BACKEND=sqlite</code> and you're done &mdash; no external database needed.</p>
+                            <p><strong>PostgreSQL 17</strong> is recommended for production and larger indexes. It provides full-text search via <code>tsvector</code>, better concurrent write performance, and JSONB support for TMDB cache.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        Can I run Indexarr behind a VPN?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            <p>Yes. The project includes a ready-made <code>docker-compose.node-c.yml</code> that routes all traffic through Gluetun + WireGuard (Mullvad). This is the recommended setup if you want to run the DHT crawler with VPN protection.</p>
+                            <p>You can also run just the web UI and sync workers without a VPN, and let a separate VPN-protected node handle crawling.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question">
+                        What are workers and which ones should I enable?
+                        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            <p>Workers are independent loops that run inside the Indexarr process:</p>
+                            <ul>
+                                <li><strong>http_server</strong> &mdash; Web UI + all APIs (always needed)</li>
+                                <li><strong>dht_crawler</strong> &mdash; Discovers info hashes from the DHT</li>
+                                <li><strong>resolver</strong> &mdash; Fetches metadata for discovered hashes</li>
+                                <li><strong>sync</strong> &mdash; Gossip protocol for sharing with other nodes</li>
+                            </ul>
+                            <p><strong>Typical setups:</strong></p>
+                            <ul>
+                                <li>Full node: <code>--all</code> (all workers)</li>
+                                <li>Web + sync only: <code>--workers http_server,sync</code></li>
+                                <li>Web UI only: <code>--workers http_server</code></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer" id="footer">
+        <div class="container">
+            <p>&copy; 2025 Indexarr. All rights reserved.</p>
+            <p class="footer-links">
+                <a href="https://github.com/AusAgentSmith-org/indexarr-rs" target="_blank" rel="noopener">GitHub</a>
+                <span class="separator">&middot;</span>
+                <a href="https://hub.docker.com/r/ausagentsmith/indexarr" target="_blank" rel="noopener">Docker Hub</a>
+                <span class="separator">&middot;</span>
+                <a href="docs/api/">API Docs</a>
+                <span class="separator">&middot;</span>
+                <a href="https://github.com/AusAgentSmith-org/indexarr-rs/issues" target="_blank" rel="noopener">Issues</a>
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        // Nav toggle
+        document.getElementById('navToggle').addEventListener('click', function() {
+            this.classList.toggle('active');
+            document.getElementById('navMenu').classList.toggle('open');
+        });
+
+        // Nav scroll
+        window.addEventListener('scroll', function() {
+            document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 20);
+        });
+
+        // FAQ accordion
+        document.querySelectorAll('.faq-question').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var item = this.parentElement;
+                var answer = item.querySelector('.faq-answer');
+                var isOpen = item.classList.contains('open');
+
+                // Close all
+                document.querySelectorAll('.faq-item.open').forEach(function(openItem) {
+                    openItem.classList.remove('open');
+                    openItem.querySelector('.faq-answer').style.maxHeight = null;
+                });
+
+                // Toggle clicked
+                if (!isOpen) {
+                    item.classList.add('open');
+                    answer.style.maxHeight = answer.scrollHeight + 'px';
+                }
+            });
+        });
+    </script>
+</body>
+</html>

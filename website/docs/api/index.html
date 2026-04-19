@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Indexarr API Documentation - REST, Torznab, and GraphQL endpoints">
+    <title>Indexarr - API Documentation</title>
+    <link rel="icon" type="image/jpeg" href="../../img/logo.jpg">
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+    <link rel="stylesheet" href="../../css/style.css">
+    <style>
+        /* Swagger UI dark theme overrides */
+        .api-page {
+            padding-top: var(--nav-height);
+            min-height: 100vh;
+        }
+
+        .api-header {
+            padding: 48px 0 32px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .api-header h1 {
+            font-size: 2.25rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .api-header p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
+        .api-nav {
+            display: flex;
+            gap: 8px;
+            margin-top: 24px;
+            flex-wrap: wrap;
+        }
+
+        .api-nav a {
+            display: inline-block;
+            padding: 8px 18px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .api-nav a:hover,
+        .api-nav a.active {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-dim);
+        }
+
+        /* Swagger container */
+        .swagger-wrap {
+            padding: 32px 0 80px;
+        }
+
+        #swagger-ui {
+            max-width: var(--container);
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Dark theme for Swagger UI */
+        .swagger-ui {
+            font-family: var(--font) !important;
+        }
+
+        .swagger-ui .topbar { display: none !important; }
+
+        .swagger-ui .info { margin: 0 !important; }
+        .swagger-ui .info .title { color: var(--text-primary) !important; font-family: var(--font) !important; }
+        .swagger-ui .info .description p { color: var(--text-secondary) !important; }
+        .swagger-ui .info a { color: var(--accent) !important; }
+
+        .swagger-ui .scheme-container {
+            background: var(--bg-secondary) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: var(--radius) !important;
+            box-shadow: none !important;
+            padding: 16px !important;
+        }
+
+        .swagger-ui .opblock-tag {
+            color: var(--text-primary) !important;
+            border-bottom: 1px solid var(--border) !important;
+            font-family: var(--font) !important;
+        }
+
+        .swagger-ui .opblock-tag:hover { background: var(--bg-secondary) !important; }
+        .swagger-ui .opblock-tag small { color: var(--text-muted) !important; }
+
+        .swagger-ui .opblock {
+            background: var(--bg-card) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: var(--radius) !important;
+            box-shadow: none !important;
+            margin-bottom: 8px !important;
+        }
+
+        .swagger-ui .opblock .opblock-summary {
+            border: none !important;
+            padding: 8px 16px !important;
+        }
+
+        .swagger-ui .opblock .opblock-summary-method {
+            border-radius: 4px !important;
+            font-size: 0.8rem !important;
+            font-weight: 700 !important;
+            min-width: 70px !important;
+            padding: 6px 12px !important;
+        }
+
+        .swagger-ui .opblock .opblock-summary-path { color: var(--text-primary) !important; font-family: var(--font-mono) !important; }
+        .swagger-ui .opblock .opblock-summary-description { color: var(--text-secondary) !important; }
+
+        .swagger-ui .opblock.opblock-get { border-left: 3px solid #61affe !important; }
+        .swagger-ui .opblock.opblock-post { border-left: 3px solid #49cc90 !important; }
+        .swagger-ui .opblock.opblock-delete { border-left: 3px solid #f93e3e !important; }
+        .swagger-ui .opblock.opblock-put { border-left: 3px solid #fca130 !important; }
+
+        .swagger-ui .opblock.opblock-get .opblock-summary-method { background: #61affe !important; }
+        .swagger-ui .opblock.opblock-post .opblock-summary-method { background: #49cc90 !important; }
+        .swagger-ui .opblock.opblock-delete .opblock-summary-method { background: #f93e3e !important; }
+        .swagger-ui .opblock.opblock-put .opblock-summary-method { background: #fca130 !important; }
+
+        .swagger-ui .opblock-body { background: var(--bg-secondary) !important; }
+        .swagger-ui .opblock-body pre { background: var(--bg-code) !important; color: #abb2bf !important; border: 1px solid var(--border) !important; }
+        .swagger-ui .opblock-description-wrapper p { color: var(--text-secondary) !important; }
+
+        .swagger-ui table thead tr td,
+        .swagger-ui table thead tr th {
+            color: var(--text-secondary) !important;
+            border-bottom: 1px solid var(--border) !important;
+        }
+
+        .swagger-ui .parameter__name { color: var(--text-primary) !important; }
+        .swagger-ui .parameter__type { color: var(--accent) !important; }
+        .swagger-ui .parameter__in { color: var(--text-muted) !important; }
+
+        .swagger-ui .model-box { background: var(--bg-code) !important; }
+        .swagger-ui .model { color: var(--text-secondary) !important; }
+        .swagger-ui .model-title { color: var(--text-primary) !important; }
+
+        .swagger-ui .response-col_status { color: var(--text-primary) !important; }
+        .swagger-ui .response-col_description { color: var(--text-secondary) !important; }
+        .swagger-ui .responses-inner { background: transparent !important; }
+
+        .swagger-ui select {
+            background: var(--bg-tertiary) !important;
+            color: var(--text-primary) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 4px !important;
+        }
+
+        .swagger-ui input[type=text] {
+            background: var(--bg-tertiary) !important;
+            color: var(--text-primary) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 4px !important;
+        }
+
+        .swagger-ui .btn {
+            border-radius: 4px !important;
+        }
+
+        .swagger-ui .btn.execute {
+            background: var(--accent) !important;
+            color: var(--bg-primary) !important;
+            border: none !important;
+        }
+
+        .swagger-ui section.models {
+            border: 1px solid var(--border) !important;
+            border-radius: var(--radius) !important;
+        }
+
+        .swagger-ui section.models h4 { color: var(--text-primary) !important; }
+        .swagger-ui section.models .model-container { background: var(--bg-card) !important; }
+
+        .swagger-ui .markdown p,
+        .swagger-ui .renderedMarkdown p {
+            color: var(--text-secondary) !important;
+        }
+
+        .swagger-ui .filter-container {
+            display: none !important;
+        }
+
+        @media (max-width: 768px) {
+            .api-header h1 { font-size: 1.75rem; }
+            .api-nav { gap: 6px; }
+            .api-nav a { padding: 6px 12px; font-size: 0.85rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="container nav-container">
+            <a href="../../" class="nav-brand">
+                <img src="../../img/logo.jpg" alt="Indexarr" class="nav-logo">
+                <span>Indexarr</span>
+            </a>
+            <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="../../">Home</a></li>
+                <li><a href="../../#features">Features</a></li>
+                <li><a href="../../#download">Download</a></li>
+                <li><a href="../../demo/">Demo</a></li>
+                <li><a href="./" class="active">API Docs</a></li>
+                <li><a href="../../faq.html">FAQ</a></li>
+                <li><a href="https://hub.docker.com/r/ausagentsmith/indexarr" target="_blank" rel="noopener">Docker Hub</a></li>
+                <li><a href="https://github.com/AusAgentSmith-org/indexarr-rs" target="_blank" rel="noopener">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="api-page">
+        <div class="api-header">
+            <div class="container">
+                <h1>API Documentation</h1>
+                <p>Indexarr exposes a REST API, Torznab/Newznab XML API, and a GraphQL endpoint.</p>
+                <div class="api-nav">
+                    <a href="#" data-filter="" class="active">All Endpoints</a>
+                    <a href="#" data-filter="Search,Torrents,Stats">REST API</a>
+                    <a href="#" data-filter="Sync">Sync</a>
+                    <a href="#" data-filter="Identity,Social">Identity &amp; Social</a>
+                    <a href="#" data-filter="System">System</a>
+                    <a href="#" data-filter="Torznab">Torznab</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="swagger-wrap">
+            <div id="swagger-ui"></div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer" id="footer">
+        <div class="container">
+            <p>&copy; 2025 Indexarr. All rights reserved.</p>
+            <p class="footer-links">
+                <a href="https://github.com/AusAgentSmith-org/indexarr-rs" target="_blank" rel="noopener">GitHub</a>
+                <span class="separator">&middot;</span>
+                <a href="https://hub.docker.com/r/ausagentsmith/indexarr" target="_blank" rel="noopener">Docker Hub</a>
+                <span class="separator">&middot;</span>
+                <a href="../../faq.html">FAQ</a>
+                <span class="separator">&middot;</span>
+                <a href="https://github.com/AusAgentSmith-org/indexarr-rs/issues" target="_blank" rel="noopener">Issues</a>
+            </p>
+        </div>
+    </footer>
+
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+    <script>
+        // Nav toggle
+        document.getElementById('navToggle').addEventListener('click', function() {
+            this.classList.toggle('active');
+            document.getElementById('navMenu').classList.toggle('open');
+        });
+
+        // Swagger UI
+        var swaggerUI = SwaggerUIBundle({
+            url: './openapi.json',
+            dom_id: '#swagger-ui',
+            deepLinking: true,
+            presets: [
+                SwaggerUIBundle.presets.apis,
+                SwaggerUIBundle.SwaggerUIStandalonePreset
+            ],
+            layout: 'BaseLayout',
+            defaultModelsExpandDepth: 0,
+            docExpansion: 'list',
+            filter: true,
+            tryItOutEnabled: false
+        });
+
+        // API nav filter buttons — toggle tag section visibility
+        document.querySelectorAll('.api-nav a').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                var filterTags = this.dataset.filter;
+                var allowedTags = filterTags ? filterTags.split(',').map(function(t) { return t.trim().toLowerCase(); }) : [];
+
+                // Update active state
+                document.querySelectorAll('.api-nav a').forEach(function(b) { b.classList.remove('active'); });
+                this.classList.add('active');
+
+                // Show/hide tag sections
+                document.querySelectorAll('.swagger-ui .opblock-tag-section').forEach(function(section) {
+                    var tagName = section.querySelector('.opblock-tag');
+                    if (!tagName) return;
+                    var tag = tagName.getAttribute('data-tag') || tagName.textContent.trim().toLowerCase();
+                    if (!filterTags || allowedTags.some(function(t) { return tag.toLowerCase().indexOf(t) !== -1; })) {
+                        section.style.display = '';
+                    } else {
+                        section.style.display = 'none';
+                    }
+                });
+
+                // Scroll to swagger UI area
+                document.querySelector('.swagger-wrap').scrollIntoView({ behavior: 'smooth' });
+            });
+        });
+
+        // Nav scroll effect
+        window.addEventListener('scroll', function() {
+            document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 20);
+        });
+    </script>
+</body>
+</html>

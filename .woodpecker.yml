@@ -1,0 +1,245 @@
+when:
+  - event: push
+    branch: main
+  - event: tag
+  - event: manual
+  - event: pull_request
+
+steps:
+
+  # ── Code quality ─────────────────────────────────────────────────────────────
+
+  - name: fmt
+    image: rust:1.88-bookworm
+    commands:
+      - rustup component add rustfmt
+      - cargo fmt --all -- --check
+
+  - name: check
+    image: rust:1.88-bookworm
+    commands:
+      - cargo check --workspace
+
+  - name: test
+    image: rust:1.88-bookworm
+    commands:
+      - cargo test --workspace
+
+  - name: clippy
+    image: rust:1.88-bookworm
+    commands:
+      - rustup component add clippy
+      - cargo clippy --workspace -- -D warnings
+
+  # ── UI build ──────────────────────────────────────────────────────────────────
+
+  - name: build-ui
+    image: node:22-bookworm-slim
+    commands:
+      - cd ui && npm ci && npm run build
+    when:
+      - event: push
+        branch: main
+      - event: tag
+
+  # ── Linux binary + tarball ───────────────────────────────────────────────────
+
+  - name: build-linux
+    image: rust:1.88-bookworm
+    commands:
+      - |
+        if [ -n "$CI_COMMIT_TAG" ]; then
+          export CARGO_PROFILE_RELEASE_LTO=fat
+          export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+          export CARGO_PROFILE_RELEASE_STRIP=symbols
+        fi
+      - cargo build --release
+      - ls -lh target/release/indexarr
+      - |
+        TAG="${CI_COMMIT_TAG:-${CI_COMMIT_SHA:0:9}}"
+        mkdir -p staging/ui
+        cp target/release/indexarr staging/indexarr
+        cp -r ui/dist staging/ui/dist
+        tar -czf "indexarr-${TAG}-linux-x86_64.tar.gz" -C staging .
+        ls -lh "indexarr-${TAG}-linux-x86_64.tar.gz"
+    when:
+      - event: push
+        branch: main
+      - event: tag
+
+  # ── Windows binary + NSIS installer ─────────────────────────────────────────
+
+  - name: build-windows
+    image: rust:1.88-bookworm
+    commands:
+      - apt-get update && apt-get install -y --no-install-recommends clang llvm lld cmake nasm nsis
+      - cargo install cargo-xwin@0.18.6 --index https://github.com/rust-lang/crates.io-index
+      - rustup target add x86_64-pc-windows-msvc
+      - |
+        if [ -n "$CI_COMMIT_TAG" ]; then
+          export CARGO_PROFILE_RELEASE_LTO=fat
+          export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+          export CARGO_PROFILE_RELEASE_STRIP=symbols
+        fi
+      - cargo xwin build --release --target x86_64-pc-windows-msvc
+      - ls -lh target/x86_64-pc-windows-msvc/release/indexarr.exe
+      - |
+        if [ -n "$CI_COMMIT_TAG" ]; then
+          TAG="$CI_COMMIT_TAG"
+          PG_VERSION="17.4"
+          echo "Downloading PostgreSQL $PG_VERSION binaries..."
+          curl -fL "https://get.enterprisedb.com/postgresql/postgresql-${PG_VERSION}-1-windows-x64-binaries.zip" \
+            -o installer/pgsql.zip
+          cp target/x86_64-pc-windows-msvc/release/indexarr.exe installer/indexarr.exe
+          # Copy built UI into installer directory for NSIS to pick up
+          cp -r ui/dist installer/dist
+          makensis -DVERSION="$TAG" -DPGVERSION="$PG_VERSION" installer/windows.nsi
+          ls -lh "installer/indexarr-${TAG}-windows-x86_64-setup.exe"
+          rm -f installer/pgsql.zip installer/indexarr.exe
+          rm -rf installer/dist
+        fi
+    when:
+      - event: push
+        branch: main
+      - event: tag
+
+  # ── Docker → GHCR ────────────────────────────────────────────────────────────
+
+  - name: build-and-push
+    image: woodpeckerci/plugin-docker-buildx
+    settings:
+      repo: ghcr.io/ausagentsmith-org/indexarr-rs
+      registry: ghcr.io
+      username: AusAgentSmith
+      password:
+        from_secret: gh_release_token
+      tags: ["latest", "${CI_COMMIT_SHA}"]
+    when:
+      - event: push
+        branch: main
+
+  - name: build-and-push-release
+    image: woodpeckerci/plugin-docker-buildx
+    settings:
+      repo: ghcr.io/ausagentsmith-org/indexarr-rs
+      registry: ghcr.io
+      username: AusAgentSmith
+      password:
+        from_secret: gh_release_token
+      tags: ["${CI_COMMIT_TAG}", "latest"]
+    when:
+      - event: tag
+
+  # ── GitHub release ───────────────────────────────────────────────────────────
+
+  - name: github-release
+    image: alpine:3.23
+    when:
+      - event: tag
+    environment:
+      GH_TOKEN:
+        from_secret: gh_release_token
+    commands:
+      - apk add --no-cache curl jq
+      - |
+        set -e
+        TAG="$CI_COMMIT_TAG"
+        REPO="AusAgentSmith-org/indexarr-rs"
+
+        # Assemble release files
+        cp "indexarr-${TAG}-linux-x86_64.tar.gz" .
+
+        # Bake version into the install script
+        sed "s|^VERSION=.*|VERSION=\"${TAG}\"|" installer/linux-install.sh \
+          > "indexarr-${TAG}-linux-install.sh"
+        chmod +x "indexarr-${TAG}-linux-install.sh"
+
+        cp "target/x86_64-pc-windows-msvc/release/indexarr.exe" \
+           "indexarr-${TAG}-windows-x86_64.exe"
+        cp "installer/indexarr-${TAG}-windows-x86_64-setup.exe" .
+
+        sha256sum \
+          "indexarr-${TAG}-linux-x86_64.tar.gz" \
+          "indexarr-${TAG}-linux-install.sh" \
+          "indexarr-${TAG}-windows-x86_64.exe" \
+          "indexarr-${TAG}-windows-x86_64-setup.exe" \
+          > "SHA256SUMS-${TAG}.txt"
+
+        # Delete existing release if present
+        EXISTING_ID=$(curl -s -H "Authorization: token $GH_TOKEN" \
+          "https://api.github.com/repos/$REPO/releases/tags/$TAG" | jq -r '.id // empty')
+        if [ -n "$EXISTING_ID" ]; then
+          curl -s -X DELETE -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/$REPO/releases/$EXISTING_ID"
+        fi
+
+        BODY="## Quick install (Linux)\n\`\`\`bash\ncurl -fsSL https://github.com/$REPO/releases/download/$TAG/indexarr-$TAG-linux-install.sh | sudo bash\n\`\`\`\n\n"
+        BODY="${BODY}## Docker\n\`\`\`\ndocker pull ghcr.io/$REPO:$TAG\n\`\`\`\n\n"
+        BODY="${BODY}SHA256 checksums in \`SHA256SUMS-${TAG}.txt\`"
+
+        RELEASE_ID=$(curl -sf -X POST \
+          -H "Authorization: token $GH_TOKEN" \
+          -H "Content-Type: application/json" \
+          -d "{\"tag_name\":\"$TAG\",\"target_commitish\":\"main\",\"name\":\"indexarr $TAG\",\"body\":\"$BODY\",\"draft\":false,\"prerelease\":true}" \
+          "https://api.github.com/repos/$REPO/releases" | jq -r '.id')
+
+        [ -n "$RELEASE_ID" ] && [ "$RELEASE_ID" != "null" ] || \
+          { echo "ERROR: Failed to create release"; exit 1; }
+
+        for file in \
+          "indexarr-${TAG}-linux-x86_64.tar.gz" \
+          "indexarr-${TAG}-linux-install.sh" \
+          "indexarr-${TAG}-windows-x86_64.exe" \
+          "indexarr-${TAG}-windows-x86_64-setup.exe" \
+          "SHA256SUMS-${TAG}.txt"; do
+          [ -f "$file" ] || continue
+          echo "Uploading $file..."
+          curl -sf -X POST \
+            -H "Authorization: token $GH_TOKEN" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary "@$file" \
+            "https://uploads.github.com/repos/$REPO/releases/$RELEASE_ID/assets?name=$file" > /dev/null
+        done
+        echo "Release $TAG complete."
+
+  # ── Discord notifications ─────────────────────────────────────────────────────
+
+  - name: discord-success
+    image: alpine/curl
+    environment:
+      DISCORD_WEBHOOK_URL:
+        from_secret: discord_webhook_url
+    commands:
+      - |
+        HASH=$(echo $CI_COMMIT_SHA | head -c 7)
+        curl -sf -H "Content-Type: application/json" -d "{
+          \"embeds\": [{
+            \"title\": \"Build Successful\",
+            \"description\": \"**${CI_REPO}** — [$HASH]($CI_REPO_URL/commit/$CI_COMMIT_SHA)\",
+            \"color\": 5025616,
+            \"footer\": {\"text\": \"$CI_REPO • $CI_COMMIT_AUTHOR\"},
+            \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+          }]
+        }" "$DISCORD_WEBHOOK_URL" || true
+    when:
+      - status: [success]
+
+  - name: discord-failure
+    image: alpine/curl
+    environment:
+      DISCORD_WEBHOOK_URL:
+        from_secret: discord_webhook_url
+    commands:
+      - |
+        HASH=$(echo $CI_COMMIT_SHA | head -c 7)
+        curl -sf -H "Content-Type: application/json" -d "{
+          \"embeds\": [{
+            \"title\": \"Build Failed\",
+            \"description\": \"**${CI_REPO}** — [$HASH]($CI_REPO_URL/commit/$CI_COMMIT_SHA)\",
+            \"color\": 15548997,
+            \"footer\": {\"text\": \"$CI_REPO • $CI_COMMIT_AUTHOR\"},
+            \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+          }]
+        }" "$DISCORD_WEBHOOK_URL" || true
+    when:
+      - status: [failure]

@@ -1,0 +1,17 @@
+services:
+  website:
+    build: .
+    container_name: indexarr-website
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - SITE_ADDRESS=indexarr.net
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

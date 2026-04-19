@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00d4aa;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00a888;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="64" cy="64" r="60" fill="#1a1d23" stroke="url(#grad)" stroke-width="3"/>
+  <!-- Network nodes -->
+  <circle cx="64" cy="32" r="8" fill="url(#grad)" filter="url(#glow)"/>
+  <circle cx="36" cy="72" r="8" fill="url(#grad)" filter="url(#glow)"/>
+  <circle cx="92" cy="72" r="8" fill="url(#grad)" filter="url(#glow)"/>
+  <circle cx="64" cy="88" r="6" fill="url(#grad)" opacity="0.7"/>
+  <circle cx="40" cy="48" r="5" fill="url(#grad)" opacity="0.6"/>
+  <circle cx="88" cy="48" r="5" fill="url(#grad)" opacity="0.6"/>
+  <!-- Connections -->
+  <line x1="64" y1="32" x2="36" y2="72" stroke="#00d4aa" stroke-width="2" opacity="0.5"/>
+  <line x1="64" y1="32" x2="92" y2="72" stroke="#00d4aa" stroke-width="2" opacity="0.5"/>
+  <line x1="36" y1="72" x2="92" y2="72" stroke="#00d4aa" stroke-width="2" opacity="0.5"/>
+  <line x1="64" y1="32" x2="40" y2="48" stroke="#00d4aa" stroke-width="1.5" opacity="0.35"/>
+  <line x1="64" y1="32" x2="88" y2="48" stroke="#00d4aa" stroke-width="1.5" opacity="0.35"/>
+  <line x1="36" y1="72" x2="64" y2="88" stroke="#00d4aa" stroke-width="1.5" opacity="0.35"/>
+  <line x1="92" y1="72" x2="64" y2="88" stroke="#00d4aa" stroke-width="1.5" opacity="0.35"/>
+  <line x1="40" y1="48" x2="36" y2="72" stroke="#00d4aa" stroke-width="1.5" opacity="0.3"/>
+  <line x1="88" y1="48" x2="92" y2="72" stroke="#00d4aa" stroke-width="1.5" opacity="0.3"/>
+  <!-- Center magnifying glass / index symbol -->
+  <circle cx="64" cy="58" r="14" fill="none" stroke="#e4e6eb" stroke-width="2.5" opacity="0.9"/>
+  <line x1="74" y1="68" x2="82" y2="76" stroke="#e4e6eb" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+  <!-- Index lines inside magnifier -->
+  <line x1="57" y1="53" x2="71" y2="53" stroke="#00d4aa" stroke-width="2" stroke-linecap="round"/>
+  <line x1="57" y1="58" x2="68" y2="58" stroke="#00d4aa" stroke-width="2" stroke-linecap="round"/>
+  <line x1="57" y1="63" x2="65" y2="63" stroke="#00d4aa" stroke-width="2" stroke-linecap="round"/>
+</svg>

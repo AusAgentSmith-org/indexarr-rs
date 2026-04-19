@@ -1,0 +1,17 @@
+/target
+.env
+data/
+*.db
+.codesight/
+.cgcignore
+.claude/
+ui/node_modules/
+ui/dist/
+website/node_modules/
+# CI-generated installer artifacts
+installer/indexarr.exe
+installer/pgsql.zip
+installer/*.exe
+!installer/windows.nsi
+!installer/setup.ps1
+!installer/linux-install.sh
