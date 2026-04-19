@@ -245,13 +245,14 @@ volumes:
                     <div class="install-steps">
                         <div class="step-block">
                             <h4>One-line Install</h4>
-                            <pre><code>curl -fsSL https://indexarr.net/downloads/latest/linux-install.sh | sudo bash</code></pre>
+                            <pre><code>bash &lt;(curl -fsSL $(curl -s https://api.github.com/repos/AusAgentSmith-org/indexarr-rs/releases/latest \
+  | grep -o '"browser_download_url":"[^"]*linux-install[^"]*"' \
+  | cut -d'"' -f4))</code></pre>
                         </div>
                         <div class="step-block">
-                            <h4>Or download the binary directly</h4>
-                            <pre><code>curl -fsSL https://indexarr.net/downloads/latest/indexarr-linux-x86_64 \
-  -o indexarr && chmod +x indexarr
-INDEXARR_DB_URL=postgres://user:pass@localhost/indexarr ./indexarr --all</code></pre>
+                            <h4>Or download the tarball</h4>
+                            <pre><code># Binary + ui/dist tarball available on GitHub Releases:
+# https://github.com/AusAgentSmith-org/indexarr-rs/releases/latest</code></pre>
                         </div>
                     </div>
                 </div>
@@ -263,14 +264,12 @@ INDEXARR_DB_URL=postgres://user:pass@localhost/indexarr ./indexarr --all</code><
                     <div class="install-steps">
                         <div class="step-block">
                             <h4>Windows Installer <span class="badge">Recommended</span></h4>
-                            <pre><code># Download the installer from GitHub Releases:
-# indexarr-&lt;version&gt;-windows-x86_64-setup.exe
-# Bundles PostgreSQL and registers a Windows service.</code></pre>
+                            <p>Download <code>indexarr-&lt;version&gt;-windows-x86_64-setup.exe</code> from <a href="https://github.com/AusAgentSmith-org/indexarr-rs/releases/latest" target="_blank" rel="noopener">GitHub Releases</a>. Bundles PostgreSQL and registers a Windows service.</p>
                         </div>
                         <div class="step-block">
                             <h4>Raw binary</h4>
-                            <pre><code># indexarr-&lt;version&gt;-windows-x86_64.exe
-indexarr.exe --all</code></pre>
+                            <p>Download <code>indexarr-&lt;version&gt;-windows-x86_64.exe</code> from <a href="https://github.com/AusAgentSmith-org/indexarr-rs/releases/latest" target="_blank" rel="noopener">GitHub Releases</a>.</p>
+                            <pre><code>indexarr.exe --all</code></pre>
                         </div>
                     </div>
                 </div>
