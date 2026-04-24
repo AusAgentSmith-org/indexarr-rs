@@ -1,0 +1,23 @@
+[package]
+name = "indexarr-xmpp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+indexarr-core.workspace = true
+indexarr-identity = { path = "../indexarr-identity" }
+indexarr-sync = { path = "../indexarr-sync" }
+
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+reqwest.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+futures = "0.3"
+
+tokio-xmpp = { version = "4", default-features = false, features = ["starttls-rust"] }

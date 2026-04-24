@@ -11,6 +11,7 @@ members = [
     "crates/indexarr-announcer",
     "crates/indexarr-sync",
     "crates/indexarr-tmdb",
+    "crates/indexarr-xmpp",
 ]
 
 default-members = ["."]
@@ -35,6 +36,7 @@ indexarr-web = { path = "crates/indexarr-web" }
 indexarr-dht = { path = "crates/indexarr-dht" }
 indexarr-announcer = { path = "crates/indexarr-announcer" }
 indexarr-sync = { path = "crates/indexarr-sync" }
+indexarr-xmpp = { path = "crates/indexarr-xmpp" }
 
 clap.workspace = true
 tokio.workspace = true
@@ -121,6 +123,7 @@ indexarr-dht = { path = "crates/indexarr-dht" }
 indexarr-announcer = { path = "crates/indexarr-announcer" }
 indexarr-sync = { path = "crates/indexarr-sync" }
 indexarr-tmdb = { path = "crates/indexarr-tmdb" }
+indexarr-xmpp = { path = "crates/indexarr-xmpp" }
 
 [profile.dev]
 panic = "abort"

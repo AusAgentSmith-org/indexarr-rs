@@ -303,9 +303,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let manager = indexarr_sync::manager::SyncManager::new(
             state.pool.clone(),
             sync_config,
-            identity,
+            identity.clone(),
             ban_list,
         );
+
+        // XMPP peer-discovery channel — shares peer_table with SyncManager
+        // so nicks observed in the MUC land alongside HTTP-PEX peers.
+        if state.settings.xmpp_enabled {
+            let peer_table = manager.peer_table_handle();
+            let xmpp_settings = state.settings.clone();
+            let xmpp_identity = identity.clone();
+            let xmpp_cancel = cancel.clone();
+            handles.push(tokio::spawn(async move {
+                indexarr_xmpp::XmppChannel::new(xmpp_settings, xmpp_identity, peer_table)
+                    .run(xmpp_cancel)
+                    .await;
+            }));
+        }
+
         let cancel = cancel.clone();
         handles.push(tokio::spawn(async move {
             manager.run(cancel).await;

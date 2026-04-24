@@ -20,7 +20,7 @@ pub struct SyncManager {
     pool: PgPool,
     settings: SyncConfig,
     exporter: DeltaExporter,
-    peer_table: RwLock<PeerTable>,
+    peer_table: Arc<RwLock<PeerTable>>,
     identity: Arc<tokio::sync::RwLock<ContributorIdentity>>,
     ban_list: Arc<tokio::sync::RwLock<BanList>>,
     activity: std::sync::Mutex<VecDeque<SyncActivity>>,
@@ -74,12 +74,18 @@ impl SyncManager {
             pool,
             settings,
             exporter,
-            peer_table: RwLock::new(peer_table),
+            peer_table: Arc::new(RwLock::new(peer_table)),
             identity,
             ban_list,
             activity: std::sync::Mutex::new(VecDeque::with_capacity(100)),
             export_sequence: std::sync::Mutex::new(0),
         }
+    }
+
+    /// Clone the peer-table handle so external discovery channels
+    /// (e.g. XMPP) can insert peers into the same table.
+    pub fn peer_table_handle(&self) -> Arc<RwLock<PeerTable>> {
+        self.peer_table.clone()
     }
 
     pub async fn run(&self, cancel: CancellationToken) {
