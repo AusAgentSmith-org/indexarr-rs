@@ -122,21 +122,6 @@ steps:
       - event: push
         branch: main
 
-  # Internal registry mirror — Komodo periphery pulls from here
-  - name: build-and-push-forgejo
-    image: woodpeckerci/plugin-docker-buildx
-    settings:
-      repo: repo.indexarr.net/indexarr/indexarr-rs
-      registry: repo.indexarr.net
-      username:
-        from_secret: git_auth_token
-      password:
-        from_secret: git_auth_token
-      tags: ["latest", "${CI_COMMIT_SHA}"]
-    when:
-      - event: push
-        branch: main
-
   # ── Komodo deploy to Node B ──────────────────────────────────────────────────
 
   - name: komodo-deploy
@@ -153,7 +138,7 @@ steps:
       - apk add --no-cache bash git curl python3 >/dev/null
       - 'curl -sSf -H "Authorization: token $GIT_AUTH_TOKEN" -o /tmp/komodo-deploy.sh https://repo.indexarr.net/indexarr/ops/raw/branch/main/scripts/komodo-deploy.sh'
       - chmod +x /tmp/komodo-deploy.sh
-      - STACK_NAME=prod-indexarr STACK_DIR=prod/indexarr IMAGE_NAME=repo.indexarr.net/indexarr/indexarr-rs IMAGE_TAG=$CI_COMMIT_SHA bash /tmp/komodo-deploy.sh
+      - STACK_NAME=prod-indexarr STACK_DIR=prod/indexarr IMAGE_NAME=ghcr.io/ausagentsmith-org/indexarr-rs IMAGE_TAG=$CI_COMMIT_SHA bash /tmp/komodo-deploy.sh
     when:
       - event: push
         branch: main
