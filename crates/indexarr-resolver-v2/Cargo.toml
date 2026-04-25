@@ -1,0 +1,29 @@
+[package]
+name = "indexarr-resolver-v2"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "BEP 9 metadata-fetch orchestrator for indexarr-rs, layered on librtbit-peer-protocol"
+
+[lints]
+workspace = true
+
+[dependencies]
+# All librtbit-* deps must be unified on the Forgejo registry — see .cargo/config.toml
+# and bep-uplift.md Phase A inventory. cargo treats the same crate@version sourced
+# from crates.io vs Forgejo as two distinct crates, which breaks trait coherence.
+peer_protocol = { version = "0.1.2", package = "librtbit-peer-protocol", registry = "forgejo" }
+librtbit-core = { version = "0.1.1", default-features = false, registry = "forgejo" }
+buffers = { version = "0.1.1", package = "librtbit-buffers", registry = "forgejo" }
+bencode = { version = "0.1.1", package = "librtbit-bencode", registry = "forgejo" }
+
+tokio = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+sha1 = "0.10"
+rand = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "test-util"] }
+hex = { workspace = true }

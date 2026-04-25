@@ -1,0 +1,20 @@
+[package]
+name = "indexarr-bep28"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "BEP 28 (Tracker Exchange / lt_tex) extended-message codec, staging ground for upstreaming into librtbit-peer-protocol"
+
+[lints]
+workspace = true
+
+[dependencies]
+# Aliased to `bencode` to match the librtbit family's import style; eases
+# upstreaming this code into librtbit-peer-protocol later.
+bencode = { version = "0.1.1", package = "librtbit-bencode", registry = "forgejo" }
+
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+hex = { workspace = true }

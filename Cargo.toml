@@ -12,6 +12,9 @@ members = [
     "crates/indexarr-sync",
     "crates/indexarr-tmdb",
     "crates/indexarr-xmpp",
+    "crates/indexarr-bep51",
+    "crates/indexarr-bep28",
+    "crates/indexarr-resolver-v2",
 ]
 
 default-members = ["."]
