@@ -33,10 +33,12 @@ use indexarr_identity::ContributorIdentity;
 use indexarr_sync::discovery::PeerTable;
 
 use tokio_xmpp::AsyncClient as XmppClient;
+use tokio_xmpp::AsyncConfig;
 use tokio_xmpp::minidom;
 use tokio_xmpp::parsers::jid::{BareJid, Jid};
 use tokio_xmpp::parsers::muc::Muc;
 use tokio_xmpp::parsers::presence::{Presence, Type as PresenceType};
+use tokio_xmpp::starttls::ServerConfig;
 
 pub struct XmppChannel {
     settings: Settings,
@@ -123,7 +125,24 @@ impl XmppChannel {
             BareJid::from_str(&muc_room).map_err(|e| format!("invalid MUC room: {e}"))?;
         let nick = format!("{contributor_id}|{external_url}");
 
-        let mut client = XmppClient::new(jid, password);
+        // Honour INDEXARR_XMPP_SERVER if set (host or host:port); otherwise
+        // fall back to SRV lookup / the JID's domain. Matches Python's
+        // `_parse_server` behaviour.
+        let server = if self.settings.xmpp_server.is_empty() {
+            ServerConfig::UseSrv
+        } else {
+            let (h, p) = match self.settings.xmpp_server.rsplit_once(':') {
+                Some((h, p)) => (h.to_string(), p.parse::<u16>().unwrap_or(5222)),
+                None => (self.settings.xmpp_server.clone(), 5222),
+            };
+            ServerConfig::Manual { host: h, port: p }
+        };
+
+        let mut client = XmppClient::new_with_config(AsyncConfig {
+            jid: jid.into(),
+            password,
+            server,
+        });
         client.set_reconnect(true);
 
         let mut seen: HashSet<String> = HashSet::new();

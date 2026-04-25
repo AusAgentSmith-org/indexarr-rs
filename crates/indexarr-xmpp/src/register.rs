@@ -97,7 +97,7 @@ pub async fn register_account(jid: &str, password: &str, server_cfg: &str) {
 
     let _ = stream.shutdown().await;
 
-    if resp.contains(r#"type="result""#) {
+    if resp.contains(r#"type="result""#) || resp.contains("type='result'") {
         tracing::info!(user = %username, "xmpp register: account registered");
     } else if resp.contains("conflict") || resp.contains("409") {
         tracing::debug!(user = %username, "xmpp register: account already exists");
