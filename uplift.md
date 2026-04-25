@@ -116,23 +116,21 @@ The announcer's `scrape_trackers()` at
 `crates/indexarr-announcer/src/lib.rs:270-307` filters out `udp://` entries
 ("BEP 15 scrape deferred"). Most of the public swarm is UDP-only.
 
-Implementation (~120 lines new code):
+**`librtbit-tracker-comms = "3.0.0"` already implements BEP 15 in full** —
+`tracker_comms_udp.rs` covers the `0x41727101980` connect handshake,
+announce, and scrape with proper transaction-id verification and
+connection-id caching. No new wire-protocol code needed.
 
-1. Parse `udp://host:port/announce` → resolve to `SocketAddr`.
-2. **Connect handshake** (action 0):
-   - Send 16-byte payload: `[protocol_id (8) = 0x41727101980, action (4) = 0, transaction_id (4) = random]`
-   - Receive 16-byte response: `[action (4) = 0, transaction_id (4), connection_id (8)]`
-   - Verify `transaction_id` matches.
-3. **Scrape request** (action 2):
-   - Send: `[connection_id (8), action (4) = 2, transaction_id (4) = random, info_hash (20) per hash, ...up to 70]`
-   - Receive: `[action (4) = 2, transaction_id (4), (seeders (4), completed (4), leechers (4)) per info_hash]`
-4. Use `tokio::net::UdpSocket` with a 5-second timeout per request.
-5. Cache the `connection_id` for reuse within a 60-second window per tracker
-   to amortize the handshake.
-
-Multi-hash batching (multiple info_hashes per scrape) is permitted by the
-spec and means one UDP round-trip can resolve many torrents — significant
-efficiency win over per-hash HTTP scrape.
+Action:
+- Add `librtbit-tracker-comms = { version = "3", registry = "forgejo" }` to
+  `indexarr-announcer/Cargo.toml`.
+- Replace the "skip if not http" branch in `scrape_trackers()` with a
+  match on URL scheme: HTTP path stays as-is, UDP path delegates to
+  `tracker-comms`'s scrape API.
+- Multi-hash batching (multiple info_hashes per scrape request) is
+  supported by the spec and by the crate — significant efficiency win
+  over per-hash HTTP scrape. Wire it up at the `poll_and_harvest` layer
+  by grouping handles by tracker URL before scraping.
 
 ### 2.2 DHT peer-count refresher worker
 
@@ -172,57 +170,102 @@ Caveats:
 
 ---
 
-## Tier 3 — defer (full peer-protocol implementation)
+## Tier 3 — leverage rustTorrent's `librtbit-*` crates
 
-These four items must ship **as one coherent piece** because they all build
-on the same peer wire protocol and BEP 10 extension framework. Estimated
-1-2 focused engineering days.
+**Discovery (2026-04-25)**: rustTorrent (`~/Working/Active/apps/rustTorrent`)
+already implements BEP 9 / 10 / 11 / 15 in production crates published to
+the Forgejo registry. `indexarr-rs` already pulls `librtbit-dht` from the
+same family, so the supply chain is established. This collapses Tier 3
+from "1-2 days" to "a few hours of integration work".
+
+Available off-the-shelf (`registry = "forgejo"`):
+
+| BEP | Crate | Module | Status |
+|---|---|---|---|
+| 9 (`ut_metadata`) | `librtbit-peer-protocol = "4.3.0"` | `extended/ut_metadata.rs` | full message impl |
+| 10 (extended handshake) | `librtbit-peer-protocol = "4.3.0"` | `extended/handshake.rs` | full |
+| 11 (`ut_pex`) | `librtbit-peer-protocol = "4.3.0"` | `extended/ut_pex.rs` | full |
+| 15 (UDP tracker) | `librtbit-tracker-comms = "3.0.0"` | `tracker_comms_udp.rs` | full connect/announce/scrape |
+| 28 (`lt_tex`) | — | — | **not implemented anywhere** — must be new code |
+
+There's also `librtbit::peer_info_reader` in rustTorrent which *looks like*
+the orchestration layer for BEP 9 (TCP connect → handshake → drive piece
+fetch). Verify whether it's directly usable or whether we need to vendor
+the orchestration code.
+
+The four items still need to ship together because they all share the
+same BEP 10 extension handshake plumbing — but it's "wire the existing
+crates together" work, not "implement the wire format from scratch".
 
 ### 3.1 BEP 9 — ut_metadata fetch (replace the stub)
 
 **Spec**: <https://www.bittorrent.org/beps/bep_0009.html>
 
-`crates/indexarr-dht/src/resolver.rs:291-317` is currently a stub. Real
-implementation:
+`crates/indexarr-dht/src/resolver.rs:291-317` is currently a stub.
 
-1. **TCP connect** to a peer from the discovered list.
-2. **BitTorrent handshake** (BEP 3): 68 bytes:
-   `[protocol_string_len (1) = 19, protocol_string (19) = "BitTorrent protocol", reserved (8 — set bit 20 for ext support), info_hash (20), peer_id (20)]`.
-3. **BEP 10 extended handshake** message: bencoded dict with `m: {"ut_metadata": <local_id>}` and `metadata_size: 0` (we don't know yet).
-4. Receive peer's extended handshake; pull `ut_metadata` ID + `metadata_size` from their `m` dict.
-5. Loop: send `request` message for each piece (`piece` index, 16 KiB chunks):
-   `{"msg_type": 0, "piece": <i>}` over the extension channel.
-6. Receive `data` messages: `{"msg_type": 1, "piece": <i>, "total_size": <bytes>}` followed by raw piece data.
-7. Assemble pieces, SHA1-verify against `info_hash`, bencode-decode the info dict.
-8. Pull name / size / files / piece info / private flag.
-9. Update `process_resolved()` to actually persist these.
+Approach: depend on `librtbit-peer-protocol` and either (a) call into
+rustTorrent's `librtbit::peer_info_reader` if it can be reused as-is, or
+(b) write a thin orchestrator that uses the message types from
+`peer_binary_protocol::extended::{handshake, ut_metadata}` directly.
 
-Add `librtbit-peer-protocol` as a workspace dep — it provides the message
-types. The TCP layer is plain `tokio::net::TcpStream`.
+Sketch of the orchestrator path:
+1. TCP connect (`tokio::net::TcpStream`) to a peer from
+   `engine.discover_peers()`.
+2. Send standard BitTorrent handshake (BEP 3) using
+   `peer_binary_protocol`'s handshake type — set the BEP 10 extension bit
+   in the reserved field.
+3. Send BEP 10 extended handshake announcing `ut_metadata`, `ut_pex`, and
+   `lt_tex` in our `m` dict.
+4. Receive peer's extended handshake → pull their `ut_metadata` id and
+   `metadata_size`.
+5. Loop: build `UtMetadata::Request { piece }` messages and write via the
+   extension channel; receive `UtMetadata::Data { piece, total_size, .. }`,
+   accumulate.
+6. SHA1-verify reassembled bytes against `info_hash`, bencode-decode the
+   info dict.
+7. Update `ResolvedMeta` (extend it to include the bit 21 `private` flag
+   and full file list — already implemented in the struct).
+8. Update `process_resolved()` to persist (already does most of this; the
+   missing field is `nfo`, which we already have a column for).
+
+Key: `peer_binary_protocol`'s `UtMetadata` enum already serializes/deserializes
+the BEP 9 messages — no bencode work needed on our side beyond the final
+info-dict parse.
 
 ### 3.2 BEP 28 — Tracker Exchange (`lt_tex`)
 
 **Spec**: <https://www.bittorrent.org/beps/bep_0028.html>
 
-This is what gives us **per-torrent trackers** organically, without static
-default lists.
+Not implemented in rustTorrent — net-new code. But the BEP 10 plumbing
+from 3.1 makes this small: it's just one extra extension message type.
 
-Once BEP 10 (3.1) is wired, advertise `lt_tex` in our extended handshake's
-`m` dict. Peers who support it will send us a message containing their
-tracker list for this torrent. Persist into `torrents.trackers`.
+After 3.1 is wired:
+1. In our extended handshake's `m` dict, advertise `lt_tex` with a local
+   extension id.
+2. When the peer's extended handshake includes their `lt_tex` id, send
+   them a `lt_tex` message (bencoded dict: `{ "added": [<tracker urls>] }`)
+   with our known tracker list.
+3. When we receive a peer's `lt_tex` message, parse the `added` list,
+   merge into `torrents.trackers` for that info_hash (de-dupe).
 
-Sender side: when a peer sends us a `lt_tex` request, respond with our
-own tracker list (after de-duping) so the swarm gradually converges on the
-union of all known trackers.
+This is the **right long-term answer for tracker harvesting** — peers
+gradually converge on the union of all known trackers per torrent, no
+static fallback lists needed.
+
+Implementation will need to add a small message type module mirroring the
+shape of `extended/ut_pex.rs` — bencode struct with `added: Vec<String>`
+and (optionally) `dropped: Vec<String>`.
 
 ### 3.3 BEP 11 — Peer Exchange (PEX, `ut_pex`)
 
 **Spec**: <https://www.bittorrent.org/beps/bep_0011.html>
 
-Less critical than 3.2 (DHT already gives us peers), but cheap once 3.1 is
-in. Advertise `ut_pex` in extended handshake; peers send us `added` /
-`added.f` lists of peers they've recently connected to. Feed those into the
-DHT shared peer cache.
+Already implemented in `librtbit-peer-protocol` (`extended/ut_pex.rs`).
+Just turn it on:
+- Advertise `ut_pex` in our extended handshake's `m` dict.
+- On receipt of a `ut_pex` message, decode the `added` / `added.f` peer
+  lists and feed them into the DHT shared peer cache (the type
+  `DhtSharedState` already supports this via `push_hash` / peer-cache).
 
 ### 3.4 BEP 12 — multi-tier `announce-list`
 
@@ -246,9 +289,9 @@ When implemented:
 
 ```
 Tier 1 ────────────────────────────────────► Tier 2 ────────► Tier 3
-1.1 default trackers (config)                2.1 BEP 15        3.1 BEP 9
-1.2 import accepts trackers                  2.2 DHT refresh   3.2 BEP 28 ◄── tracker harvest
-1.3 sync-merge audit (done)                  2.3 wire-up       3.3 BEP 11
+1.1 default trackers (config)                2.1 BEP 15        3.1 BEP 9   (use librtbit-peer-protocol)
+1.2 import accepts trackers                  2.2 DHT refresh   3.2 BEP 28  ◄── tracker harvest (NEW code)
+1.3 sync-merge audit (done)                  2.3 wire-up       3.3 BEP 11  (free, just enable in handshake)
                                                                3.4 BEP 12 (only after
                                                                    external .torrent fetch)
 ```
@@ -258,5 +301,33 @@ defaults cover trackerless hashes, DHT keeps peer counts fresh. After
 Tier 3 lands the resolver actually resolves and trackers organically
 converge across the swarm.
 
+Tier 3 effort estimate **dropped from ~2 days to a few hours** thanks to
+the rustTorrent `librtbit-*` crates that already implement BEPs 9 / 10 /
+11 / 15. Only BEP 28 (lt_tex) is genuinely new code, and it's small — one
+extension message type slotted into the BEP 10 framework.
+
 Anything not delivered by Tier 2 + Tier 3 (e.g. BEP 12 outer-dict tier
 handling, scrape multitracker hint extension) is icing.
+
+---
+
+## Cross-repo dependencies
+
+The Tier 3 work introduces dependencies on rustTorrent-published crates
+in our Forgejo cargo registry:
+
+```toml
+# indexarr-dht/Cargo.toml (already there)
+dht = { version = "0.1.1", package = "librtbit-dht" }
+
+# new
+peer-protocol = { version = "4.3", package = "librtbit-peer-protocol", registry = "forgejo" }
+
+# indexarr-announcer/Cargo.toml (new for Tier 2.1)
+tracker-comms = { version = "3", package = "librtbit-tracker-comms", registry = "forgejo" }
+```
+
+Per the workspace `CLAUDE.md` shared-libs rules: any breaking change to
+these crates from rustTorrent's side will affect indexarr-rs, so we should
+pin versions explicitly and bump deliberately rather than tracking
+`latest`. Verify CI strips local `[patch]` overrides as documented.
