@@ -134,10 +134,12 @@ pub async fn search(
     let mut bind_strings: Vec<String> = Vec::new();
     let _bind_ints: Vec<i64> = Vec::new();
 
-    // Base conditions: resolved, announced, has seeders
+    // Base conditions: resolved + announced. We deliberately *do not* gate on
+    // seed_count >= 1 here — that filter belongs on the user's `min_seeders`
+    // query param (default 0) so torrents whose announcer hasn't yet stamped
+    // a count remain visible.
     conditions.push("t.resolved_at IS NOT NULL".to_string());
     conditions.push("t.announced_at IS NOT NULL".to_string());
-    conditions.push("t.seed_count >= 1".to_string());
 
     // Full-text search
     let has_fts_query = !filters.query.is_empty();
@@ -178,11 +180,13 @@ async fn execute_search_query(
     pool: &PgPool,
     filters: &SearchFilters,
 ) -> Result<(Vec<SearchResultItem>, i64), sqlx::Error> {
-    // Build WHERE clauses and collect bind values
+    // Build WHERE clauses and collect bind values.
+    // No hardcoded seed_count gate here — `min_seeders` filter (below) handles
+    // that on demand; defaults to 0 so resolved torrents whose announcer
+    // hasn't yet stamped a count remain searchable.
     let mut where_parts = vec![
         "t.resolved_at IS NOT NULL".to_string(),
         "t.announced_at IS NOT NULL".to_string(),
-        "t.seed_count >= 1".to_string(),
     ];
 
     // We use a query builder approach — build the SQL dynamically,
