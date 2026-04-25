@@ -101,6 +101,10 @@ impl Default for FetchConfig {
 pub struct FetchedMetadata {
     /// Raw bencoded `info` dict bytes. SHA1 of this == info_hash.
     pub bytes: Vec<u8>,
+    /// Peers we observed in BEP 11 (ut_pex) messages from the serving peer
+    /// during the metadata fetch. Free peers — feed into a peer cache for
+    /// future fetches against the same info_hash.
+    pub harvested_peers: Vec<SocketAddr>,
 }
 
 /// Generate a fresh peer_id with the standard rtbit-style prefix.
@@ -258,9 +262,14 @@ async fn fetch_inner(
     }
     tracing::trace!(?peer_addr, ?info_hash, "bt handshake ok");
 
+    // PEX harvest accumulator — populated opportunistically as `ut_pex`
+    // messages arrive interleaved with the BEP 9 conversation.
+    let mut harvested_peers: Vec<SocketAddr> = Vec::new();
+
     // ─── BEP 10 extended handshake ──────────────────────────────────────
     send_extended_handshake(&mut stream).await?;
-    let (ut_metadata_id, total_size) = recv_extended_handshake(&mut stream).await?;
+    let (ut_metadata_id, total_size) =
+        recv_extended_handshake(&mut stream, &mut harvested_peers).await?;
     if total_size == 0 {
         return Err(ResolverError::EmptyMetadata);
     }
@@ -279,7 +288,7 @@ async fn fetch_inner(
 
     for piece in 0..total_pieces {
         send_metadata_request(&mut stream, piece, peer_ids).await?;
-        let chunk = recv_metadata_data(&mut stream, piece).await?;
+        let chunk = recv_metadata_data(&mut stream, piece, &mut harvested_peers).await?;
         let offset = (piece as usize) * METADATA_PIECE_SIZE as usize;
         let end = offset + chunk.len();
         if end > metadata.len() {
@@ -289,7 +298,17 @@ async fn fetch_inner(
         tracing::trace!(piece, len = chunk.len(), "ut_metadata piece ok");
     }
 
-    Ok(FetchedMetadata { bytes: metadata })
+    if !harvested_peers.is_empty() {
+        // De-dupe — peers can show up across multiple ut_pex frames.
+        harvested_peers.sort();
+        harvested_peers.dedup();
+        tracing::trace!(?peer_addr, count = harvested_peers.len(), "ut_pex harvest");
+    }
+
+    Ok(FetchedMetadata {
+        bytes: metadata,
+        harvested_peers,
+    })
 }
 
 async fn send_extended_handshake(stream: &mut TcpStream) -> Result<(), ResolverError> {
@@ -314,7 +333,10 @@ async fn send_extended_handshake(stream: &mut TcpStream) -> Result<(), ResolverE
     Ok(())
 }
 
-async fn recv_extended_handshake(stream: &mut TcpStream) -> Result<(u8, u32), ResolverError> {
+async fn recv_extended_handshake(
+    stream: &mut TcpStream,
+    harvested: &mut Vec<SocketAddr>,
+) -> Result<(u8, u32), ResolverError> {
     loop {
         let frame = read_frame(stream).await?;
         let (msg, _) = Message::deserialize(&frame, &[])?;
@@ -324,6 +346,10 @@ async fn recv_extended_handshake(stream: &mut TcpStream) -> Result<(u8, u32), Re
                 let id = m.ut_metadata.ok_or(ResolverError::NoUtMetadataId)?;
                 let size = eh.metadata_size.ok_or(ResolverError::NoMetadataSize)?;
                 return Ok((id, size));
+            }
+            Message::Extended(ExtendedMessage::UtPex(pex)) => {
+                harvest_pex(&pex, harvested);
+                continue;
             }
             // Tolerate any non-extended-handshake message that arrives first
             // (Bitfield, Have, KeepAlive, choke/unchoke from over-eager peers,
@@ -357,6 +383,7 @@ async fn send_metadata_request(
 async fn recv_metadata_data(
     stream: &mut TcpStream,
     expected_piece: u32,
+    harvested: &mut Vec<SocketAddr>,
 ) -> Result<Vec<u8>, ResolverError> {
     loop {
         let frame = read_frame(stream).await?;
@@ -376,9 +403,25 @@ async fn recv_metadata_data(
             Message::Extended(ExtendedMessage::UtMetadata(UtMetadata::Reject(p))) => {
                 return Err(ResolverError::PieceRejected(p));
             }
+            Message::Extended(ExtendedMessage::UtPex(pex)) => {
+                harvest_pex(&pex, harvested);
+                continue;
+            }
             // Tolerate non-metadata traffic interleaved with our fetch.
             _ => continue,
         }
+    }
+}
+
+/// Pull peer addresses out of a `ut_pex` (BEP 11) message into the harvest
+/// accumulator. We only take `added` peers; `dropped` peers are by definition
+/// no longer useful.
+fn harvest_pex(
+    pex: &peer_protocol::extended::ut_pex::UtPex<ByteBuf<'_>>,
+    harvested: &mut Vec<SocketAddr>,
+) {
+    for info in pex.added_peers() {
+        harvested.push(info.addr);
     }
 }
 

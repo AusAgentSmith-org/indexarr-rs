@@ -144,6 +144,7 @@ impl MetadataResolver {
                 let cancel = self.cancel.clone();
                 let peer_id = self.peer_id;
                 let tracker_discovery = self.tracker_discovery.clone();
+                let shared = self.shared.clone();
 
                 tokio::spawn(async move {
                     let _permit = permit;
@@ -185,12 +186,21 @@ impl MetadataResolver {
                     }
 
                     match fetch_metadata(&hash, &peers, timeout, peer_id).await {
-                        Ok(meta) => {
+                        Ok((meta, harvested_peers)) => {
+                            // Free peers from the winning peer's ut_pex messages —
+                            // fold them into shared.peer_cache for the next batch.
+                            let cached = if !harvested_peers.is_empty() {
+                                shared.cache_peers(&hash, harvested_peers.iter().copied())
+                            } else {
+                                0
+                            };
                             tracing::info!(
                                 hash = %hash,
                                 peers = peers.len(),
                                 size = meta.size,
                                 files = meta.files.len(),
+                                pex = harvested_peers.len(),
+                                pex_cached = cached,
                                 "BEP 9 fetch ok"
                             );
                             if let Err(e) = process_resolved(&pool, &hash, &meta, threshold).await {
@@ -335,12 +345,16 @@ struct FileEntry {
 /// at once) via `fetch_from_peers`; first peer that returns a SHA1-verified
 /// info dict wins. We then parse those bytes into the structured
 /// `ResolvedMeta` shape the rest of the pipeline expects.
+///
+/// Also returns any peers we harvested from `ut_pex` (BEP 11) messages on
+/// the winning peer's connection — these are typically active peers we'd
+/// have had to spend a query to discover otherwise.
 async fn fetch_metadata(
     info_hash: &str,
     peers: &[SocketAddr],
     timeout_secs: u64,
     peer_id: Id20,
-) -> Result<ResolvedMeta, String> {
+) -> Result<(ResolvedMeta, Vec<SocketAddr>), String> {
     if peers.is_empty() {
         return Err(format!("no peers available for {info_hash}"));
     }
@@ -355,8 +369,9 @@ async fn fetch_metadata(
         .await
         .map_err(|e| format!("all {} peers failed (last: {e})", peers.len()))?;
 
-    parse_info_dict(&fetched.bytes)
-        .map_err(|e| format!("info dict parse failed after BEP 9 fetch: {e}"))
+    let meta = parse_info_dict(&fetched.bytes)
+        .map_err(|e| format!("info dict parse failed after BEP 9 fetch: {e}"))?;
+    Ok((meta, fetched.harvested_peers))
 }
 
 /// Parse a bencoded `info` dict into the resolver's `ResolvedMeta` shape.

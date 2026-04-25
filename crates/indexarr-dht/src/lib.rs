@@ -78,6 +78,33 @@ impl DhtSharedState {
             .unwrap_or_default()
     }
 
+    /// Merge `addrs` into the peer cache for `info_hash`, deduping against
+    /// existing entries and capping at 20 peers per hash. Used by the
+    /// resolver after a successful BEP 9 fetch to fold in `ut_pex`-harvested
+    /// peers for next time.
+    pub fn cache_peers(
+        &self,
+        info_hash: &str,
+        addrs: impl IntoIterator<Item = std::net::SocketAddr>,
+    ) -> usize {
+        let mut peers = self
+            .peer_cache
+            .entry(info_hash.to_string())
+            .or_insert_with(|| VecDeque::with_capacity(20));
+        let mut added = 0usize;
+        for addr in addrs {
+            if peers.len() >= 20 {
+                break;
+            }
+            let entry = (addr.ip().to_string(), addr.port());
+            if !peers.contains(&entry) {
+                peers.push_back(entry);
+                added += 1;
+            }
+        }
+        added
+    }
+
     /// Evict oldest entries if cache is too large.
     pub fn evict_if_needed(&self) {
         if self.peer_cache.len() > self.max_cache_size {
