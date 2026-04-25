@@ -35,6 +35,7 @@ use indexarr_sync::discovery::PeerTable;
 
 use tokio_xmpp::AsyncClient as XmppClient;
 use tokio_xmpp::AsyncConfig;
+use tokio_xmpp::Event as XmppEvent;
 use tokio_xmpp::minidom;
 use tokio_xmpp::parsers::jid::{BareJid, Jid};
 use tokio_xmpp::parsers::muc::Muc;
@@ -181,24 +182,34 @@ impl XmppChannel {
                     let Some(event) = next else {
                         return Err("xmpp stream ended".to_string());
                     };
-                    if event.is_online() {
-                        tracing::info!(room = %room, nick = %nick, "xmpp: online, joining MUC");
-                        let room_with_nick = format!("{room}/{nick}");
-                        let to: Jid = match Jid::from_str(&room_with_nick) {
-                            Ok(j) => j,
-                            Err(e) => return Err(format!("bad room/nick: {e}")),
-                        };
-                        let mut presence = Presence::new(PresenceType::None).with_to(to);
-                        presence.add_payload(Muc::new());
-                        let stanza: minidom::Element = presence.into();
-                        if let Err(e) = client.send_stanza(stanza).await {
-                            return Err(format!("muc join send_stanza: {e}"));
+                    match event {
+                        XmppEvent::Online { ref bound_jid, .. } => {
+                            tracing::info!(jid = %bound_jid, room = %room, nick = %nick, "xmpp: online, joining MUC");
+                            let room_with_nick = format!("{room}/{nick}");
+                            let to: Jid = match Jid::from_str(&room_with_nick) {
+                                Ok(j) => j,
+                                Err(e) => return Err(format!("bad room/nick: {e}")),
+                            };
+                            let mut presence = Presence::new(PresenceType::None).with_to(to);
+                            presence.add_payload(Muc::new());
+                            let stanza: minidom::Element = presence.into();
+                            if let Err(e) = client.send_stanza(stanza).await {
+                                return Err(format!("muc join send_stanza: {e}"));
+                            }
                         }
-                    } else if let Some(element) = event.into_stanza()
-                        && element.name() == "presence"
-                        && let Err(e) = self.handle_presence(&element, &room, &nick, &mut seen).await
-                    {
-                        tracing::debug!(error = %e, "xmpp: presence handle error");
+                        XmppEvent::Disconnected(err) => {
+                            // tokio-xmpp will internally retry when reconnect
+                            // is enabled, but log the cause so SASL/auth
+                            // failures aren't silent.
+                            tracing::warn!(error = %err, "xmpp: disconnected");
+                        }
+                        XmppEvent::Stanza(element) => {
+                            if element.name() == "presence"
+                                && let Err(e) = self.handle_presence(&element, &room, &nick, &mut seen).await
+                            {
+                                tracing::debug!(error = %e, "xmpp: presence handle error");
+                            }
+                        }
                     }
                 }
             }
@@ -293,9 +304,18 @@ impl XmppChannel {
             self.settings.xmpp_muc_room.clone()
         };
 
+        // MUC JIDs look like `room@conference.example.com` or
+        // `room@muc.example.com`. Strip the `room@` and the leading
+        // component (`conference.` / `muc.` / etc.) to get the bare
+        // server domain that c2s/s2s should use.
         let domain = muc_room
-            .split_once("@conference.")
-            .map(|(_, d)| d.to_string())
+            .split_once('@')
+            .map(|(_, server)| {
+                server
+                    .split_once('.')
+                    .map(|(_, rest)| rest.to_string())
+                    .unwrap_or_else(|| server.to_string())
+            })
             .unwrap_or_else(|| "indexarr.net".to_string());
 
         let jid = if self.settings.xmpp_jid.is_empty() {
