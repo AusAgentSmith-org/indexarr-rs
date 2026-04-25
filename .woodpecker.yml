@@ -38,9 +38,8 @@ steps:
     commands:
       - cd ui && npm ci && npm run build
     when:
-      - event: push
-        branch: main
       - event: tag
+      - event: manual
 
   # ── Linux binary + tarball ───────────────────────────────────────────────────
 
@@ -67,9 +66,8 @@ steps:
         tar -czf "indexarr-$TAG-linux-x86_64.tar.gz" -C staging .
         ls -lh "indexarr-$TAG-linux-x86_64.tar.gz"
     when:
-      - event: push
-        branch: main
       - event: tag
+      - event: manual
 
   # ── Windows binary + NSIS installer ─────────────────────────────────────────
 
@@ -103,9 +101,8 @@ steps:
           rm -rf installer/dist
         fi
     when:
-      - event: push
-        branch: main
       - event: tag
+      - event: manual
 
   # ── Docker → GHCR ────────────────────────────────────────────────────────────
 
@@ -225,6 +222,43 @@ steps:
             "https://uploads.github.com/repos/$REPO/releases/$RELEASE_ID/assets?name=$file" > /dev/null
         done
         echo "Release $TAG complete."
+
+  # ── Discord changelog (releases only) ────────────────────────────────────────
+
+  - name: discord-release
+    image: alpine:3.23
+    when:
+      - event: tag
+    environment:
+      DISCORD_WEBHOOK_URL:
+        from_secret: discord_changelog_webhook_url
+      GH_TOKEN:
+        from_secret: gh_release_token
+    commands:
+      - apk add --no-cache curl jq >/dev/null
+      - |
+        TAG="$CI_COMMIT_TAG"
+        REPO="AusAgentSmith-org/indexarr-rs"
+
+        # Pull the freshly-published release notes from GitHub.
+        BODY=$(curl -sf -H "Authorization: token $GH_TOKEN" \
+          "https://api.github.com/repos/$REPO/releases/tags/$TAG" | jq -r '.body // ""')
+        # Discord embed description cap is 4096 chars; truncate generously.
+        BODY=$(printf '%s' "$BODY" | head -c 3500)
+
+        PAYLOAD=$(jq -n --arg tag "$TAG" --arg repo "$REPO" --arg body "$BODY" \
+          --arg url "https://github.com/$REPO/releases/tag/$TAG" \
+          '{
+            embeds: [{
+              title: ("indexarr " + $tag),
+              url: $url,
+              description: $body,
+              color: 5025616,
+              footer: {text: $repo},
+              timestamp: (now | todate)
+            }]
+          }')
+        curl -sf -H "Content-Type: application/json" -d "$PAYLOAD" "$DISCORD_WEBHOOK_URL" || true
 
   # ── Discord notifications ─────────────────────────────────────────────────────
 
