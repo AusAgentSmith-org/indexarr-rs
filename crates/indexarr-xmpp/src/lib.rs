@@ -17,6 +17,7 @@
 //! password deterministically from the contributor id). Accounts that
 //! already exist are reused.
 
+mod plaintext;
 mod register;
 
 use std::collections::HashSet;
@@ -38,7 +39,8 @@ use tokio_xmpp::minidom;
 use tokio_xmpp::parsers::jid::{BareJid, Jid};
 use tokio_xmpp::parsers::muc::Muc;
 use tokio_xmpp::parsers::presence::{Presence, Type as PresenceType};
-use tokio_xmpp::starttls::ServerConfig;
+
+use crate::plaintext::PlaintextConnector;
 
 pub struct XmppChannel {
     settings: Settings,
@@ -125,32 +127,53 @@ impl XmppChannel {
             BareJid::from_str(&muc_room).map_err(|e| format!("invalid MUC room: {e}"))?;
         let nick = format!("{contributor_id}|{external_url}");
 
-        // Honour INDEXARR_XMPP_SERVER if set (host or host:port); otherwise
-        // fall back to SRV lookup / the JID's domain. Matches Python's
-        // `_parse_server` behaviour.
-        let server = if self.settings.xmpp_server.is_empty() {
-            ServerConfig::UseSrv
-        } else {
-            let (h, p) = match self.settings.xmpp_server.rsplit_once(':') {
-                Some((h, p)) => (h.to_string(), p.parse::<u16>().unwrap_or(5222)),
-                None => (self.settings.xmpp_server.clone(), 5222),
-            };
-            ServerConfig::Manual { host: h, port: p }
-        };
+        // INDEXARR_XMPP_SERVER set → trusted internal Prosody, plaintext OK.
+        // Empty → public XMPP, fall back to SRV lookup w/ STARTTLS.
+        //
+        // We need plaintext for our internal Prosody because tokio-xmpp's
+        // STARTTLS connector errors out unless the server advertises
+        // `<starttls>` in stream features, and our self-hosted Prosody
+        // serves c2s without TLS.
+        if self.settings.xmpp_server.is_empty() {
+            let mut client = XmppClient::new(jid, password);
+            client.set_reconnect(true);
+            return self.drive(cancel, client, room, nick).await;
+        }
 
-        let mut client = XmppClient::new_with_config(AsyncConfig {
+        let (h, p) = match self.settings.xmpp_server.rsplit_once(':') {
+            Some((h, p)) => (h.to_string(), p.parse::<u16>().unwrap_or(5222)),
+            None => (self.settings.xmpp_server.clone(), 5222),
+        };
+        let connector = PlaintextConnector { host: h, port: p };
+
+        let mut client = XmppClient::<PlaintextConnector>::new_with_config(AsyncConfig {
             jid: jid.into(),
             password,
-            server,
+            server: connector,
         });
         client.set_reconnect(true);
 
+        self.drive(cancel, client, room, nick).await
+    }
+
+    /// Pump events from a connected client, joining the MUC on `Online`
+    /// and routing presence stanzas to `handle_presence`. Generic over
+    /// the underlying server connector (STARTTLS or plaintext).
+    async fn drive<C>(
+        &self,
+        cancel: CancellationToken,
+        mut client: XmppClient<C>,
+        room: BareJid,
+        nick: String,
+    ) -> Result<(), String>
+    where
+        C: tokio_xmpp::connect::ServerConnector,
+    {
         let mut seen: HashSet<String> = HashSet::new();
 
         loop {
             tokio::select! {
                 _ = cancel.cancelled() => {
-                    // Best-effort close.
                     let _ = client.send_end().await;
                     return Ok(());
                 }

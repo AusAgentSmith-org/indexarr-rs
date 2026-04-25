@@ -208,6 +208,13 @@ write_config() {
   cat > "${CONF_DIR}/indexarr.env" <<EOF
 INDEXARR_DB_URL=postgres://${PG_ROLE}:${PG_PASS}@127.0.0.1:5432/${PG_DB}
 INDEXARR_DATA_DIR=${DATA_DIR}
+
+# P2P sync — bootstrap into the public indexarr swarm on first boot.
+INDEXARR_SYNC_ENABLED=true
+INDEXARR_SYNC_PEERS=["https://bootstrap.indexarr.net"]
+
+# XMPP MUC peer discovery — joins indexarr-sync@conference.indexarr.net.
+INDEXARR_XMPP_ENABLED=true
 EOF
   chmod 640 "${CONF_DIR}/indexarr.env"
   chown root:"${INDEXARR_GROUP}" "${CONF_DIR}/indexarr.env"
