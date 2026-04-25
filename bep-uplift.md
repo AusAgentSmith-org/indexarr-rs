@@ -402,44 +402,80 @@ can wait for the next minor.
   `-sha1-wrapper`: 0.1.2 patch sweep to add `keywords`/`categories`/
   `rust-version` metadata. No code change.
 
-### A.5 — Updated open decisions
+### A.5 — Open decisions (closed-out 2026-04-25)
 
 Resolved by audit:
 - ~~License~~ → **MIT** (matches family).
 - ~~btpydht LOC~~ → 7,340, not 5,300 (cosmetic).
 - crates.io namespace → keep `librtbit-*` (no change).
 
-Still open, need user call before Phase B:
-1. **B1 (vendor) vs B2 (consume + new crates)** — recommend **B2**, no new
-   info changes that.
-2. **`librtbit-tracker-comms` glob re-export fix** — confirm this is OK to
-   do as a breaking change (the crate has zero crates.io history, so semver
-   is irrelevant; just call out for awareness).
-3. **`librtbit-dht` 0.2.0 features** — confirm BEP 51 *and* passive
-   observation hook ship together (recommended) vs separately.
-4. **CHANGELOG location** — per-crate `CHANGELOG.md` (recommended; matches
-   what crates.io expects).
-5. **Backport target branch** — direct PR to `main` per crate (recommended;
-   crates are independent and small).
-6. **rustTorrent roadmap coordination** — same person (you), so
-   self-coordinate. No open question.
+All six open decisions have a final disposition now:
+
+1. ~~**B1 (vendor) vs B2 (consume + new crates)**~~ — **resolved B2 by execution.**
+   `crates/indexarr-bep51`, `crates/indexarr-bep28`, and
+   `crates/indexarr-resolver-v2` were all built and shipped this session,
+   consuming `librtbit-peer-protocol` from the Forgejo registry. No
+   vendoring, no two-master problem. Confirmed working as of pipeline 55.
+
+2. ~~**`librtbit-tracker-comms` glob re-export fix**~~ — **deferred until
+   tracker-comms is queued for crates.io publish.** No consumer is
+   currently asking for the explicit surface, no publish is gating on it,
+   and refactoring blind costs more than the theoretical hygiene win.
+   Reconsider the day someone files a Phase C ticket for tracker-comms
+   crates.io publish — at that point we have a forcing function and a
+   clear set of stable items to call out.
+
+3. ~~**`librtbit-dht` 0.2.0 features grouping**~~ — **deferred until we
+   have a metric that motivates it.** The current passive-discovery
+   workaround in `crates/indexarr-dht/src/engine.rs:98` (random-target
+   `get_peers()` queries) works. The expected gain from a real passive
+   observation hook is real but unmeasured. Trigger condition: when
+   indexarr-rs surfaces a "crawl rate would benefit from passive
+   observation" metric, or when we want our nodes to be queryable via
+   `sample_infohashes` (BEP 51 server side). At that point: ship BEP 51
+   *and* the observation hook together as `librtbit-dht 0.2.0`
+   (recommended in original draft).
+
+4. ~~**CHANGELOG location**~~ — per-crate `CHANGELOG.md` confirmed
+   (matches existing convention; nothing to do until a crates.io publish
+   forces a real changelog entry).
+
+5. ~~**Backport target branch**~~ — direct PR to `main` per crate, as
+   already done for `librtbit-peer-protocol 0.1.2` this session
+   (commit `24f8575`). No further question.
+
+6. ~~**rustTorrent roadmap coordination**~~ — same maintainer; no open
+   question.
 
 ### A.6 — Phase B kickoff readiness
 
-With the audit complete, Phase B is unblocked except for items 1–3 above.
-Recommended kickoff order (assuming B2):
+Phase B sections 1-3 are **complete and deployed.** See [Phase B execution
+log](#phase-b-execution-log-2026-04-25) below for what shipped and where.
+Phase C (crates.io publishes) is now the only outstanding bep-uplift
+work item, and per decision #2 above it's deferred until forced.
 
-1. Create `crates/indexarr-bep51` skeleton in indexarr-rs — query/response
-   types + a temporary fork of the relevant `librtbit-dht` internals for
-   the crawler hook. Parity tests against `btpydht/tests/test_bep51.py`.
-2. Create `crates/indexarr-bep28` skeleton — `lt_tex` extension message
-   type, mirroring the shape of `extended/ut_pex.rs`. No reference impl
-   exists; spec-driven.
-3. Create `crates/indexarr-resolver-v2` — orchestrator that drives BEP 9
-   metadata fetch via `librtbit-peer-protocol`. Replaces the stub in
-   `indexarr-dht::resolver`.
+---
 
-When each new crate stabilises, content moves upstream:
-- `indexarr-bep51` → into `librtbit-dht` 0.2.0
-- `indexarr-bep28` → into `librtbit-peer-protocol` 0.2.0
-- `indexarr-resolver-v2` stays in indexarr-rs (app-layer).
+## Phase B execution log (2026-04-25)
+
+| Section | What shipped | Where | Commit |
+|---|---|---|---|
+| B.1 | `crates/indexarr-bep51` — BEP 51 codec, 15 parity tests | indexarr-rs | `aca7dfa` |
+| B.2 | `crates/indexarr-bep28` — BEP 28 (`lt_tex`) codec, 9 tests | indexarr-rs | `aca7dfa` |
+| B.3 | `crates/indexarr-resolver-v2` — BEP 9 metadata-fetch orchestrator, 9 integration tests | indexarr-rs | `aca7dfa` |
+| B.3 | `MetadataResolver` wired to `fetch_from_peer` — real BEP 9 fetch live, replaces the `Err("not yet implemented")` stub | `indexarr-dht/src/resolver.rs` | `c350bb6` |
+| infra | Forgejo cargo registry wired into local + CI + Dockerfile; all librtbit-* deps unified on Forgejo | `.cargo/`, `.woodpecker.yml`, `Dockerfile`, all crate `Cargo.toml`s | `d7cd6dc`, `3cdbc3a`, `e715a0e` |
+| lib fix | `librtbit-peer-protocol 0.1.1 → 0.1.2` — `PeerExtendedMessageIds` skip-None fix + regression test | `librtbit-peer-protocol`, Forgejo registry | `24f8575` |
+
+End state: all three new crates live in `indexarr-rs/crates/`, all 46
+workspace tests pass, CI green, prod-indexarr on Node B redeployed and
+running real BEP 9 metadata fetch as of `c350bb66f`.
+
+The only Phase A deliverables not actually shipped are:
+- BEP 28 has no live consumer yet — no peer-protocol integration.
+  `indexarr-bep28` is a working codec waiting for a use case.
+- `indexarr-bep51` is a working codec but the actual DHT integration
+  (server-side responses + outgoing queries) is gated on decision #3
+  above — deferred until measured need.
+- Phase C crates.io publishes for the 6 unpublished crates — gated on
+  decisions #2/#3 above.
