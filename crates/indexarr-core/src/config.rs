@@ -143,7 +143,7 @@ impl Settings {
             dht_crawl_interval: env_u64("INDEXARR_DHT_CRAWL_INTERVAL", 30),
 
             resolve_workers: env_u32("INDEXARR_RESOLVE_WORKERS", 20),
-            resolve_timeout: env_f64("INDEXARR_RESOLVE_TIMEOUT", 10.0),
+            resolve_timeout: env_f64("INDEXARR_RESOLVE_TIMEOUT", 30.0),
             save_files_threshold: env_u32("INDEXARR_SAVE_FILES_THRESHOLD", 200),
 
             announcer_enabled: env_bool("INDEXARR_ANNOUNCER_ENABLED", true),

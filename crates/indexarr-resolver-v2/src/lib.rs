@@ -112,6 +112,81 @@ pub fn random_peer_id() -> Id20 {
     Id20::new(bytes)
 }
 
+/// Maximum number of peer fetches we run concurrently for a single info_hash
+/// inside [`fetch_from_peers`]. Bigger = faster first success but more
+/// concurrent TCP connections; this gets multiplied by the caller's own
+/// concurrency (e.g. resolver workers), so keep it modest.
+pub const DEFAULT_MAX_CONCURRENT_PEERS: usize = 8;
+
+/// Fetch BEP 9 metadata by racing up to `max_concurrent` peers in parallel,
+/// returning the first one that succeeds.
+///
+/// Behaviour:
+/// - Spawns up to `max_concurrent` peer fetches concurrently.
+/// - As each one completes, if it succeeded the function returns immediately
+///   and the remaining in-flight futures are cancelled by drop.
+/// - If it failed, the next un-tried peer (if any) is started in its place.
+/// - If every peer fails, returns the *last* `ResolverError` seen — caller
+///   gets a representative failure rather than a "no peers" sentinel.
+///
+/// Empty `peers` slice → returns [`ResolverError::Connect`] with an
+/// `ErrorKind::AddrNotAvailable` sentinel (no real connection was attempted).
+pub async fn fetch_from_peers(
+    info_hash: Id20,
+    peers: &[SocketAddr],
+    peer_id: Id20,
+    config: FetchConfig,
+    max_concurrent: usize,
+) -> Result<FetchedMetadata, ResolverError> {
+    use futures::stream::{FuturesUnordered, StreamExt};
+
+    if peers.is_empty() {
+        return Err(ResolverError::Connect(std::io::Error::new(
+            std::io::ErrorKind::AddrNotAvailable,
+            "no peers to try",
+        )));
+    }
+
+    let cap = max_concurrent.max(1).min(peers.len());
+    let mut next_idx = 0usize;
+    let mut in_flight = FuturesUnordered::new();
+
+    // Boxed-pinned futures so seed-pushes and top-up-pushes share a single
+    // FuturesUnordered<...> element type (each `async move` block otherwise
+    // has its own anonymous type).
+    type PinFut = std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<FetchedMetadata, ResolverError>> + Send>,
+    >;
+    let make_fut = |peer: SocketAddr| -> PinFut {
+        Box::pin(async move { fetch_from_peer(info_hash, peer, peer_id, config).await })
+    };
+
+    while next_idx < cap {
+        let peer = peers[next_idx];
+        next_idx += 1;
+        in_flight.push(make_fut(peer));
+    }
+
+    let mut last_err: Option<ResolverError> = None;
+    while let Some(result) = in_flight.next().await {
+        match result {
+            Ok(meta) => return Ok(meta),
+            Err(e) => {
+                tracing::trace!(?info_hash, error = %e, "peer fetch failed");
+                last_err = Some(e);
+            }
+        }
+        // Top up the in-flight pool with the next un-tried peer.
+        if next_idx < peers.len() {
+            let peer = peers[next_idx];
+            next_idx += 1;
+            in_flight.push(make_fut(peer));
+        }
+    }
+
+    Err(last_err.unwrap_or(ResolverError::UnexpectedEof))
+}
+
 /// Fetch BEP 9 metadata for `info_hash` from a single peer at `peer_addr`.
 ///
 /// On success returns the raw bencoded `info` dict bytes. The bytes are

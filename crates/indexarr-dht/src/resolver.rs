@@ -4,7 +4,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use bencode::{ByteBufOwned, from_bytes};
-use indexarr_resolver_v2::{FetchConfig, MAX_METADATA_SIZE, ResolverError, fetch_from_peer};
+use indexarr_resolver_v2::{
+    DEFAULT_MAX_CONCURRENT_PEERS, FetchConfig, MAX_METADATA_SIZE, fetch_from_peers,
+};
 use librtbit_core::hash_id::Id20;
 use librtbit_core::torrent_metainfo::TorrentMetaV1Info;
 use sqlx::{PgPool, Row};
@@ -329,10 +331,10 @@ struct FileEntry {
 
 /// Fetch metadata for an info_hash from a list of candidate peers via BEP 9.
 ///
-/// Tries each peer sequentially (first-success-wins). The fetch returns the
-/// raw bencoded `info` dict bytes (SHA1-verified against `info_hash` by
-/// `indexarr-resolver-v2`); we then parse those bytes into the structured
-/// fields the rest of the pipeline expects.
+/// Races peers in parallel (up to [`DEFAULT_MAX_CONCURRENT_PEERS`] in flight
+/// at once) via `fetch_from_peers`; first peer that returns a SHA1-verified
+/// info dict wins. We then parse those bytes into the structured
+/// `ResolvedMeta` shape the rest of the pipeline expects.
 async fn fetch_metadata(
     info_hash: &str,
     peers: &[SocketAddr],
@@ -349,37 +351,12 @@ async fn fetch_metadata(
         max_metadata_size: MAX_METADATA_SIZE,
     };
 
-    let mut last_err: Option<ResolverError> = None;
-    for peer in peers {
-        match fetch_from_peer(id, *peer, peer_id, cfg).await {
-            Ok(fetched) => match parse_info_dict(&fetched.bytes) {
-                Ok(meta) => {
-                    tracing::debug!(
-                        hash = %info_hash,
-                        peer = %peer,
-                        bytes = fetched.bytes.len(),
-                        "BEP 9 fetch ok"
-                    );
-                    return Ok(meta);
-                }
-                Err(e) => {
-                    tracing::trace!(hash = %info_hash, peer = %peer, error = %e, "info dict parse failed");
-                    last_err = Some(ResolverError::HashMismatch); // sentinel — not actually a hash mismatch
-                    continue;
-                }
-            },
-            Err(e) => {
-                tracing::trace!(hash = %info_hash, peer = %peer, error = %e, "BEP 9 fetch peer failed");
-                last_err = Some(e);
-                continue;
-            }
-        }
-    }
+    let fetched = fetch_from_peers(id, peers, peer_id, cfg, DEFAULT_MAX_CONCURRENT_PEERS)
+        .await
+        .map_err(|e| format!("all {} peers failed (last: {e})", peers.len()))?;
 
-    Err(match last_err {
-        Some(e) => format!("all {} peers failed (last: {e})", peers.len()),
-        None => format!("all {} peers failed", peers.len()),
-    })
+    parse_info_dict(&fetched.bytes)
+        .map_err(|e| format!("info dict parse failed after BEP 9 fetch: {e}"))
 }
 
 /// Parse a bencoded `info` dict into the resolver's `ResolvedMeta` shape.
