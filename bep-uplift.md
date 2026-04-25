@@ -220,3 +220,226 @@ These need your call before the plan goes from "draft" to "execute":
 - `librtbit-lsd` (Local Service Discovery) — needs writeup before publish;
   not blocking BEP discovery work; defer to its own task.
 - Rebranding away from `librtbit-*` namespace.
+
+---
+
+## Phase A audit findings (2026-04-25)
+
+Phase A complete. The original draft above is **stale on several points** —
+versions and a couple of "hygiene flags" have moved on. Source of truth from
+here onward is this section.
+
+### A.1 — Corrected crate inventory
+
+All 12 `librtbit-*` repos cloned to `~/Working/Active/apps/libs/`, all on
+`main`, clean (just `Cargo.lock` drift + codesight markers). The version
+numbers in the original inventory table (5.x / 4.x / 3.x) are wrong; the
+family was reset to `0.1.x` for a clean crates.io start. License is **MIT
+across the family** — answers open-decision #2 (no MPL/Apache discussion
+needed; stay MIT).
+
+| Crate | Local version | crates.io | Forgejo registry | Repo URL in Cargo.toml |
+|---|---|---|---|---|
+| librtbit-clone-to-owned | 0.1.1 | ✅ 0.1.1 | ✅ 0.1.1 | github |
+| librtbit-buffers | 0.1.1 | ✅ 0.1.1 | ✅ 0.1.1 | github |
+| librtbit-bencode | 0.1.1 | ✅ 0.1.1 | ✅ 0.1.1 | github |
+| librtbit-sha1-wrapper | 0.1.1 | ✅ 0.1.1 | ✅ 0.1.1 | github |
+| librtbit-core | 0.1.1 | ✅ 0.1.1 | ✅ 0.1.1 | github |
+| librtbit-dht | 0.1.1 | ✅ 0.1.1 | ✅ 0.1.1 | github |
+| librtbit-peer-protocol | 0.1.1 | ❌ | ✅ 0.1.1 | **forgejo private IP** |
+| librtbit-tracker-comms | 0.1.2 | ❌ | ✅ 0.1.2 | **forgejo private IP** |
+| librtbit-upnp | 0.1.1 | ❌ | ✅ 0.1.1 | **forgejo private IP** |
+| librtbit-upnp-serve | 0.1.1 | ❌ | ✅ 0.1.1 | **forgejo private IP** |
+| librtbit-lsd | 0.1.1 | ❌ | ✅ 0.1.1 | **forgejo private IP** |
+| librtbit | 0.1.1 | ❌ | ✅ 0.1.1 | **forgejo private IP** |
+
+> **Correction (2026-04-25, post-audit):** earlier draft above marked the
+> bottom 6 as "not published anywhere". They are in fact on the Forgejo
+> cargo registry — the unauthenticated curl probes used during Phase A
+> returned empty bodies and were misread as 404s. `cargo fetch` with the
+> standard `~/.cargo/credentials.toml` resolves all 12 cleanly. So
+> consumption from indexarr-rs is unblocked today; only the
+> **crates.io** publish for the bottom 6 remains as a Phase C task.
+
+**Hygiene flags already resolved** (vs original draft):
+- `librtbit-tracker-comms` description fixed → "HTTP and UDP tracker communication for the rtbit BitTorrent client" (was "sha1 implementations").
+- `librtbit-lsd` description fixed → "BEP 14 Local Service Discovery for the rtbit BitTorrent client" (was empty).
+
+**Hygiene flags still open across the whole family** (incl. the published 6):
+- No `keywords`, `categories`, `homepage`, `documentation`, `readme`,
+  `rust-version` declared in any `Cargo.toml`. Worth a sweep PR per crate
+  — even the already-published ones, as a 0.1.2 cleanup release.
+- The 6 unpublished crates still have `repository = "http://100.92.54.45:3002/..."`
+  (Tailscale IP, internal). Won't render usable links on docs.rs / crates.io.
+  Must flip to `https://github.com/AusAgentSmith-org/<crate>` (matching the
+  6 already-published crates) before first publish.
+- Edition `2024` is correct (stabilised in Rust 1.85, Feb 2025) — ignore any
+  tooling that flags it.
+
+### A.2 — BEP parity audit (line-by-line, both stacks)
+
+Audited against `~/Working/Active/RefenceMaterials/reference/External Repos/pythonTorrentDHT`
+(`btpydht`, 7,340 LOC across 14 modules — original draft said 5,300, also
+stale). Spot-checks below have file:line citations; full agent transcripts
+were captured during this audit.
+
+**BEP 5 (DHT Protocol)** — parity confirmed.
+- `librtbit-dht`: `bprotocol.rs:433-572` (message kinds + serialize),
+  `routing_table.rs:304` (K=8), `routing_table.rs:480` (max RT 512),
+  tokio + `Arc<DhtState>` + `RwLock<RoutingTable>` + per-instance worker task.
+  Rate-limited to 250 q/s by default (`dht.rs:80-95`).
+- `btpydht`: `dht.py:1830-1907` (queries), `dht.py:1942` (K=8),
+  `dht.py:2074-2120` (bucket-split), threaded with `threading.Thread + Lock`.
+- Semantics match. Rust has explicit per-second rate limit; Python relies on
+  socket pacing. No behavioural gap blocking parity.
+
+**BEP 9 / BEP 10 (ut_metadata + extended)** — parity confirmed, Rust slightly
+ahead on edge-case coverage.
+- `librtbit-peer-protocol`: `extended/handshake.rs:9-30`,
+  `extended/ut_metadata.rs:92-216` with full bound checks (oversized payload,
+  piece out-of-bounds, exact-size mismatch, trailing bytes).
+- `btpydht`: `metadata.py:217-552`. Single-threaded, blocking sockets.
+  Caller-managed retry across peers (`fetch_metadata_from_peers`).
+- Rust has the codec; **no built-in orchestrator**. The "drive a metadata
+  fetch end-to-end" loop is caller-side — that loop is what
+  `indexarr-rs::resolver-v2` will own (Phase B).
+
+**BEP 11 (PEX)** — present in Rust (`extended/ut_pex.rs`), absent in btpydht
+(parses incoming PEX in `metadata.py:182-213` but doesn't produce). Not a
+blocker; rust-ahead.
+
+**BEP 15 (UDP tracker scrape)** — present in Rust
+(`librtbit-tracker-comms::tracker_comms_udp::UdpTrackerClient`), absent in
+btpydht (Python Indexarr historically called libtorrent for this). Rust-ahead.
+
+**BEP 12 (announce-list)** — assumed present in `librtbit-core::torrent_metainfo`
+per the original draft. **Not re-verified this audit** (low priority — already
+in the "out of scope" list). Verify before consuming if needed.
+
+**BEP 28 (lt_tex)** — confirmed **absent in both stacks**. `grep -r "lt_tex|BEP.28|bep28"`
+returns zero hits in `librtbit-peer-protocol`. Net-new work for Phase B.
+
+**BEP 51 (sample_infohashes)** — confirmed **absent in `librtbit-dht`**.
+Exhaustive grep returns zero matches. Present in `btpydht`:
+- Query handler: `dht.py:1476-1487` (`_on_sample_infohashes_query`).
+- Response builder: `krcp.py:178-179`, `krcp.py:388-406` (compact nodes
+  ≤8 + random sample of stored infohashes ≤20, interval 0–21600s per spec).
+- User callback hook: `dht.py:1332-1355` (`on_sample_infohashes_*`).
+- Tests: `tests/test_bep51.py` (271 LOC).
+This is the primary BEP gap for the Rust side.
+
+**Bonus**: `librtbit-peer-protocol` already implements **BEP 55 (ut_holepunch)**
+(`extended/ut_holepunch.rs`). Not on the original matrix; useful for NAT
+traversal in Phase B+.
+
+### A.3 — Critical API gap (separate from the BEP gap)
+
+`librtbit-dht` exposes only **outbound queries** — `get_peers(infohash)` returns
+a stream of peers for an infohash *the caller already knows*. There is **no
+callback API** for "the DHT just observed someone querying / announcing
+infohash X" (which is the actual indexarr crawl signal).
+
+Today `indexarr-rs::indexarr-dht::engine.rs:98` works around this by sending
+`get_peers(random_id)` queries — the random IDs cause neighbour DHT nodes to
+respond with peer/infohash data which we then sniff. It works, but:
+- It's bandwidth-inefficient (we're sending queries to *receive* discovery).
+- It misses the announce_peer traffic flowing past us (we hear queries
+  *we* sent, not queries *others* sent).
+- BEP 51 and a passive observer hook would both help; they solve overlapping
+  problems and can be designed together.
+
+**Two related additions needed in `librtbit-dht`**:
+1. **BEP 51 client + server** — query other DHT nodes for samples; respond
+   to incoming `sample_infohashes` queries.
+2. **Passive observation hook** — a callback (or subscription channel)
+   `on_observed_infohash(info_hash, source: ObservedFrom)` so consumers
+   can ingest infohashes seen in incoming queries we route. This is a
+   pure addition to the existing crate, no protocol work.
+
+Both ride together as `librtbit-dht 0.2.0` (next minor).
+
+### A.4 — Locked target API for first crates.io publish (per crate)
+
+For each crate that's about to make its first crates.io appearance — what
+breaking changes (if any) ride this release. Lock them now; everything else
+can wait for the next minor.
+
+**`librtbit-peer-protocol` 0.1.x → first publish**:
+- Keep `ExtendedMessage::Dyn(u8, BencodeValue<ByteBuf>)` even though it leaks
+  `librtbit-bencode`. That's fine — it's a sister crate, also published, also
+  0.x; the semver coupling is acceptable and disclosed in docs.
+- Add `examples/extended_handshake.rs` and `examples/ut_metadata_fetch.rs`
+  (both currently absent — required-quality bar for first publish).
+- Move tests out of `src/extended/mod.rs` inline `#[cfg(test)]` block into
+  `tests/extended_message_roundtrip.rs` for crates.io discoverability.
+- BEP 28 (`lt_tex`) **does not block first publish** — adds in 0.2.0.
+
+**`librtbit-tracker-comms` 0.1.2 → first publish**:
+- ⚠ **Glob re-export**: `lib.rs:5` does `pub use tracker_comms::*;`.
+  This is a stability risk — every internal item becomes part of the public
+  contract. Recommend replacing with explicit re-exports of the intended
+  surface (`TrackerClient`, request/response types, `UdpTrackerClient`).
+  This **is** a breaking change and must happen before first publish.
+- Description already fixed.
+
+**`librtbit-upnp` / `librtbit-upnp-serve` 0.1.x → first publish**:
+- Optional / not BEP-related. Defer unless something in indexarr-rs needs
+  them. No locked-API decisions to make right now.
+
+**`librtbit-lsd` 0.1.x**:
+- Defer to its own task. Description fixed but no real consumer drives the
+  API surface yet. Don't first-publish a crate nobody depends on.
+
+**`librtbit` (high-level facade) 0.1.1**:
+- Defer. Facade for `Session`, `Api`, full client. Out of scope for
+  bep-uplift; that's a rustTorrent-client decision, not an indexarr one.
+
+**Already-published crates (0.1.1, no API churn)**:
+- `librtbit-dht` 0.1.1 → bump to **0.2.0** when BEP 51 + passive-observation
+  hook land (additive, but a notable feature bump warrants minor — and we
+  can use the bump to also add the missing `keywords`/`categories` metadata).
+- `librtbit-core`, `-bencode`, `-buffers`, `-clone-to-owned`,
+  `-sha1-wrapper`: 0.1.2 patch sweep to add `keywords`/`categories`/
+  `rust-version` metadata. No code change.
+
+### A.5 — Updated open decisions
+
+Resolved by audit:
+- ~~License~~ → **MIT** (matches family).
+- ~~btpydht LOC~~ → 7,340, not 5,300 (cosmetic).
+- crates.io namespace → keep `librtbit-*` (no change).
+
+Still open, need user call before Phase B:
+1. **B1 (vendor) vs B2 (consume + new crates)** — recommend **B2**, no new
+   info changes that.
+2. **`librtbit-tracker-comms` glob re-export fix** — confirm this is OK to
+   do as a breaking change (the crate has zero crates.io history, so semver
+   is irrelevant; just call out for awareness).
+3. **`librtbit-dht` 0.2.0 features** — confirm BEP 51 *and* passive
+   observation hook ship together (recommended) vs separately.
+4. **CHANGELOG location** — per-crate `CHANGELOG.md` (recommended; matches
+   what crates.io expects).
+5. **Backport target branch** — direct PR to `main` per crate (recommended;
+   crates are independent and small).
+6. **rustTorrent roadmap coordination** — same person (you), so
+   self-coordinate. No open question.
+
+### A.6 — Phase B kickoff readiness
+
+With the audit complete, Phase B is unblocked except for items 1–3 above.
+Recommended kickoff order (assuming B2):
+
+1. Create `crates/indexarr-bep51` skeleton in indexarr-rs — query/response
+   types + a temporary fork of the relevant `librtbit-dht` internals for
+   the crawler hook. Parity tests against `btpydht/tests/test_bep51.py`.
+2. Create `crates/indexarr-bep28` skeleton — `lt_tex` extension message
+   type, mirroring the shape of `extended/ut_pex.rs`. No reference impl
+   exists; spec-driven.
+3. Create `crates/indexarr-resolver-v2` — orchestrator that drives BEP 9
+   metadata fetch via `librtbit-peer-protocol`. Replaces the stub in
+   `indexarr-dht::resolver`.
+
+When each new crate stabilises, content moves upstream:
+- `indexarr-bep51` → into `librtbit-dht` 0.2.0
+- `indexarr-bep28` → into `librtbit-peer-protocol` 0.2.0
+- `indexarr-resolver-v2` stays in indexarr-rs (app-layer).
