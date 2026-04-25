@@ -1,7 +1,14 @@
 use std::net::SocketAddr;
+use std::str::FromStr;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
+use bencode::{ByteBufOwned, from_bytes};
+use indexarr_resolver_v2::{
+    FetchConfig, MAX_METADATA_SIZE, ResolverError, fetch_from_peer, random_peer_id,
+};
+use librtbit_core::hash_id::Id20;
+use librtbit_core::torrent_metainfo::TorrentMetaV1Info;
 use sqlx::{PgPool, Row};
 use tokio_util::sync::CancellationToken;
 
@@ -17,6 +24,10 @@ pub struct MetadataResolver {
     timeout_secs: u64,
     save_files_threshold: u32,
     cancel: CancellationToken,
+    /// Stable peer_id used for every BEP 9 fetch from this resolver instance.
+    /// Generated once at construction so a peer that bans us mid-batch keeps
+    /// banning the same id rather than seeing fresh ones.
+    peer_id: Id20,
 }
 
 impl MetadataResolver {
@@ -37,6 +48,7 @@ impl MetadataResolver {
             timeout_secs,
             save_files_threshold,
             cancel,
+            peer_id: random_peer_id(),
         }
     }
 
@@ -122,6 +134,7 @@ impl MetadataResolver {
                 let timeout = self.timeout_secs;
                 let threshold = self.save_files_threshold;
                 let cancel = self.cancel.clone();
+                let peer_id = self.peer_id;
 
                 tokio::spawn(async move {
                     let _permit = permit;
@@ -135,7 +148,7 @@ impl MetadataResolver {
                         .execute(&pool)
                         .await;
 
-                    match fetch_metadata(&hash, &peers, timeout).await {
+                    match fetch_metadata(&hash, &peers, timeout, peer_id).await {
                         Ok(meta) => {
                             if let Err(e) = process_resolved(&pool, &hash, &meta, threshold).await {
                                 tracing::debug!(hash = %hash, error = %e, "failed to store metadata");
@@ -278,42 +291,113 @@ struct FileEntry {
     size: i64,
 }
 
-/// Fetch metadata for an info_hash from peers.
+/// Fetch metadata for an info_hash from a list of candidate peers via BEP 9.
 ///
-/// This is a simplified implementation. The full BEP 9 metadata exchange
-/// requires connecting to peers, performing a BitTorrent handshake with
-/// extension protocol (BEP 10), negotiating ut_metadata, and downloading
-/// metadata pieces. For Phase 3 MVP, we attempt to extract info from
-/// the DHT response data (peer count) and mark as needing resolution.
-///
-/// A full implementation would use librtbit-peer-protocol's BEP 9 support
-/// to connect to peers and download the metadata dictionary.
+/// Tries each peer sequentially (first-success-wins). The fetch returns the
+/// raw bencoded `info` dict bytes (SHA1-verified against `info_hash` by
+/// `indexarr-resolver-v2`); we then parse those bytes into the structured
+/// fields the rest of the pipeline expects.
 async fn fetch_metadata(
     info_hash: &str,
     peers: &[SocketAddr],
-    _timeout_secs: u64,
+    timeout_secs: u64,
+    peer_id: Id20,
 ) -> Result<ResolvedMeta, String> {
-    // Phase 3 MVP: We don't yet implement the full BEP 9 peer connection.
-    // This requires a TCP connection per peer with:
-    // 1. BitTorrent handshake (protocol string + info_hash + peer_id)
-    // 2. Extended handshake (BEP 10 - negotiate ut_metadata extension)
-    // 3. Request metadata pieces (BEP 9 - ut_metadata request messages)
-    // 4. Assemble and verify metadata (SHA1 of bencoded info == info_hash)
-    //
-    // The librtbit-peer-protocol crate has all the message types for this,
-    // but the full TCP connection + handshake + piece assembly needs to be
-    // wired up. For now, we return an error so torrents stay unresolved
-    // and can be picked up when the full implementation is ready.
-    //
-    // TODO: Implement BEP 9 metadata fetching using:
-    // - tokio::net::TcpStream for peer connections
-    // - peer_binary_protocol::Message for handshake/extension messages
-    // - SHA1 verification of assembled metadata
-    Err(format!(
-        "BEP 9 metadata fetch not yet implemented ({} peers available for {})",
-        peers.len(),
-        info_hash
-    ))
+    if peers.is_empty() {
+        return Err(format!("no peers available for {info_hash}"));
+    }
+
+    let id = Id20::from_str(info_hash).map_err(|e| format!("invalid info_hash: {e}"))?;
+    let cfg = FetchConfig {
+        timeout: Duration::from_secs(timeout_secs.max(1)),
+        max_metadata_size: MAX_METADATA_SIZE,
+    };
+
+    let mut last_err: Option<ResolverError> = None;
+    for peer in peers {
+        match fetch_from_peer(id, *peer, peer_id, cfg).await {
+            Ok(fetched) => match parse_info_dict(&fetched.bytes) {
+                Ok(meta) => {
+                    tracing::debug!(
+                        hash = %info_hash,
+                        peer = %peer,
+                        bytes = fetched.bytes.len(),
+                        "BEP 9 fetch ok"
+                    );
+                    return Ok(meta);
+                }
+                Err(e) => {
+                    tracing::trace!(hash = %info_hash, peer = %peer, error = %e, "info dict parse failed");
+                    last_err = Some(ResolverError::HashMismatch); // sentinel — not actually a hash mismatch
+                    continue;
+                }
+            },
+            Err(e) => {
+                tracing::trace!(hash = %info_hash, peer = %peer, error = %e, "BEP 9 fetch peer failed");
+                last_err = Some(e);
+                continue;
+            }
+        }
+    }
+
+    Err(match last_err {
+        Some(e) => format!("all {} peers failed (last: {e})", peers.len()),
+        None => format!("all {} peers failed", peers.len()),
+    })
+}
+
+/// Parse a bencoded `info` dict into the resolver's `ResolvedMeta` shape.
+fn parse_info_dict(bytes: &[u8]) -> Result<ResolvedMeta, String> {
+    let info: TorrentMetaV1Info<ByteBufOwned> =
+        from_bytes(bytes).map_err(|e| format!("bencode decode: {e}"))?;
+
+    let name = info
+        .name
+        .as_ref()
+        .map(|b| String::from_utf8_lossy(b.as_ref()).into_owned())
+        .unwrap_or_default();
+
+    let mut files: Vec<FileEntry> = Vec::new();
+    let mut total_size: i64 = 0;
+
+    if let Some(file_list) = &info.files {
+        // Multi-file torrent.
+        for f in file_list {
+            let path = f
+                .path
+                .iter()
+                .map(|seg| String::from_utf8_lossy(seg.as_ref()).into_owned())
+                .collect::<Vec<_>>()
+                .join("/");
+            let size = f.length as i64;
+            total_size = total_size.saturating_add(size);
+            files.push(FileEntry { path, size });
+        }
+    } else if let Some(length) = info.length {
+        // Single-file torrent.
+        total_size = length as i64;
+        files.push(FileEntry {
+            path: name.clone(),
+            size: total_size,
+        });
+    }
+
+    let piece_count = info.pieces.as_ref().map(|p| (p.as_ref().len() / 20) as i32);
+    let piece_length = i32::try_from(info.piece_length).ok();
+
+    Ok(ResolvedMeta {
+        name,
+        size: total_size,
+        files,
+        is_private: info.private,
+        piece_length,
+        piece_count,
+        // BEP 9 doesn't carry seed/peer counts — left at 0 here. Caller's
+        // SQL update uses GREATEST(seed_count, $5) so existing values from the
+        // tracker scraper are preserved.
+        seed_count: 0,
+        peer_count: 0,
+    })
 }
 
 /// Process resolved metadata — store in DB and run content pipeline.

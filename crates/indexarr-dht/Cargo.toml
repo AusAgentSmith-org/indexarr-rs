@@ -17,6 +17,11 @@ indexarr-classifier = { path = "../indexarr-classifier" }
 # (resolver-v2 needs librtbit-peer-protocol which is Forgejo-only; the same
 # crate from a second registry would be treated as distinct by cargo).
 dht = { version = "0.1.1", package = "librtbit-dht", registry = "forgejo" }
+librtbit-core = { version = "0.1.1", default-features = false, registry = "forgejo" }
+bencode = { version = "0.1.1", package = "librtbit-bencode", registry = "forgejo" }
+
+# BEP 9 metadata fetcher (workspace-internal).
+indexarr-resolver-v2 = { path = "../indexarr-resolver-v2" }
 
 # Async
 tokio.workspace = true
