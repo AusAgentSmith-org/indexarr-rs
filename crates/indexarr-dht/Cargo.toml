@@ -19,9 +19,14 @@ indexarr-classifier = { path = "../indexarr-classifier" }
 dht = { version = "0.1.1", package = "librtbit-dht", registry = "forgejo" }
 librtbit-core = { version = "0.1.1", default-features = false, registry = "forgejo" }
 bencode = { version = "0.1.1", package = "librtbit-bencode", registry = "forgejo" }
+tracker_comms = { version = "0.1.2", package = "librtbit-tracker-comms", registry = "forgejo" }
 
 # BEP 9 metadata fetcher (workspace-internal).
 indexarr-resolver-v2 = { path = "../indexarr-resolver-v2" }
+
+# HTTP client for tracker_comms + URL parsing for the tracker list.
+reqwest.workspace = true
+url.workspace = true
 
 # Async
 tokio.workspace = true
@@ -39,6 +44,7 @@ serde_json.workspace = true
 # Util
 tracing.workspace = true
 thiserror.workspace = true
+anyhow.workspace = true
 chrono.workspace = true
 dashmap.workspace = true
 parking_lot.workspace = true

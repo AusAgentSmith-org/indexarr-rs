@@ -1,6 +1,11 @@
 pub mod engine;
 pub mod ingest;
 pub mod resolver;
+pub mod tracker_announce;
+
+// Re-exported so callers (main.rs) can construct a peer_id for the resolver
+// without depending on indexarr-resolver-v2 directly.
+pub use indexarr_resolver_v2::random_peer_id;
 
 use std::collections::VecDeque;
 use std::sync::Arc;

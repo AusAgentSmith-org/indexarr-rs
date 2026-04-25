@@ -250,6 +250,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 // Start resolver
                 if workers.iter().any(|w| w == "resolver") {
+                    // Shared peer_id between BEP 9 fetches and tracker announces
+                    // — both want a stable identity per resolver instance.
+                    let resolver_peer_id = indexarr_dht::random_peer_id();
+                    // UDP bind failure here is unrecoverable — we'd be running
+                    // without any tracker discovery, so just fail loudly at startup.
+                    let tracker_discovery = std::sync::Arc::new(
+                        indexarr_dht::tracker_announce::TrackerDiscovery::new(
+                            cancel.clone(),
+                            resolver_peer_id,
+                            state.settings.dht_base_port,
+                        )
+                        .await
+                        .expect(
+                            "TrackerDiscovery: failed to bind UDP socket for tracker announces",
+                        ),
+                    );
+
                     let resolver = indexarr_dht::resolver::MetadataResolver::new(
                         state.pool.clone(),
                         dht_shared.clone(),
@@ -258,6 +275,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         state.settings.resolve_timeout as u64,
                         state.settings.save_files_threshold,
                         cancel.clone(),
+                        resolver_peer_id,
+                        tracker_discovery,
                     );
                     handles.push(tokio::spawn(async move {
                         resolver.run().await;

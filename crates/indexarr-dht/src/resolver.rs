@@ -4,9 +4,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use bencode::{ByteBufOwned, from_bytes};
-use indexarr_resolver_v2::{
-    FetchConfig, MAX_METADATA_SIZE, ResolverError, fetch_from_peer, random_peer_id,
-};
+use indexarr_resolver_v2::{FetchConfig, MAX_METADATA_SIZE, ResolverError, fetch_from_peer};
 use librtbit_core::hash_id::Id20;
 use librtbit_core::torrent_metainfo::TorrentMetaV1Info;
 use sqlx::{PgPool, Row};
@@ -14,6 +12,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::DhtSharedState;
 use crate::engine::DhtEngine;
+use crate::tracker_announce::SharedTrackerDiscovery;
 
 /// Metadata resolver — fetches torrent metadata via BEP 9 and runs content pipeline.
 pub struct MetadataResolver {
@@ -24,13 +23,15 @@ pub struct MetadataResolver {
     timeout_secs: u64,
     save_files_threshold: u32,
     cancel: CancellationToken,
-    /// Stable peer_id used for every BEP 9 fetch from this resolver instance.
-    /// Generated once at construction so a peer that bans us mid-batch keeps
-    /// banning the same id rather than seeing fresh ones.
+    /// Stable peer_id shared with `TrackerDiscovery` so trackers and peers see
+    /// the same identity from this resolver instance.
     peer_id: Id20,
+    /// Tracker-driven peer discovery (HTTP + UDP popular public trackers).
+    tracker_discovery: SharedTrackerDiscovery,
 }
 
 impl MetadataResolver {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         pool: PgPool,
         shared: Arc<DhtSharedState>,
@@ -39,6 +40,8 @@ impl MetadataResolver {
         timeout_secs: u64,
         save_files_threshold: u32,
         cancel: CancellationToken,
+        peer_id: Id20,
+        tracker_discovery: SharedTrackerDiscovery,
     ) -> Self {
         Self {
             pool,
@@ -48,7 +51,8 @@ impl MetadataResolver {
             timeout_secs,
             save_files_threshold,
             cancel,
-            peer_id: random_peer_id(),
+            peer_id,
+            tracker_discovery,
         }
     }
 
@@ -114,16 +118,18 @@ impl MetadataResolver {
                 }
             }
 
-            // Resolve each hash that has peers
-            for entry in discovered.iter() {
+            // Resolve EVERY hash in the batch — even those with no DHT/cache
+            // peers. The spawn task announces against the tracker list and
+            // can rescue hashes that DHT couldn't find peers for.
+            for hash in &hash_strings {
                 if self.cancel.is_cancelled() {
                     break;
                 }
-                let hash = entry.key().clone();
-                let peers = entry.value().clone();
-                if peers.is_empty() {
-                    continue;
-                }
+                let hash = hash.clone();
+                let peers: Vec<SocketAddr> = discovered
+                    .get(&hash)
+                    .map(|e| e.value().clone())
+                    .unwrap_or_default();
 
                 let permit = match semaphore.clone().acquire_owned().await {
                     Ok(p) => p,
@@ -135,6 +141,7 @@ impl MetadataResolver {
                 let threshold = self.save_files_threshold;
                 let cancel = self.cancel.clone();
                 let peer_id = self.peer_id;
+                let tracker_discovery = self.tracker_discovery.clone();
 
                 tokio::spawn(async move {
                     let _permit = permit;
@@ -147,6 +154,33 @@ impl MetadataResolver {
                         .bind(&hash)
                         .execute(&pool)
                         .await;
+
+                    // Augment the DHT/cache-discovered peer set with addresses
+                    // harvested from announces against popular public trackers.
+                    // Run in parallel with the (already-completed) DHT discovery
+                    // — bounded to 5s so a slow tracker doesn't stall the fetch.
+                    let mut peers = peers;
+                    if let Ok(id20) = Id20::from_str(&hash) {
+                        let tracker_peers = tracker_discovery
+                            .discover_peers(id20, std::time::Duration::from_secs(5))
+                            .await;
+                        if !tracker_peers.is_empty() {
+                            tracing::debug!(
+                                hash = %hash,
+                                dht = peers.len(),
+                                trackers = tracker_peers.len(),
+                                "tracker announce complete"
+                            );
+                            // Dedupe via HashSet, then collect.
+                            let mut seen: std::collections::HashSet<SocketAddr> =
+                                peers.iter().copied().collect();
+                            for addr in tracker_peers {
+                                if seen.insert(addr) {
+                                    peers.push(addr);
+                                }
+                            }
+                        }
+                    }
 
                     match fetch_metadata(&hash, &peers, timeout, peer_id).await {
                         Ok(meta) => {
@@ -171,16 +205,6 @@ impl MetadataResolver {
                         }
                     }
                 });
-            }
-
-            // Increment attempts for hashes with no peers
-            for hash in &hash_strings {
-                if !discovered.contains_key(hash) {
-                    let _ = sqlx::query("UPDATE torrents SET resolve_attempts = resolve_attempts + 1 WHERE info_hash = $1")
-                        .bind(hash)
-                        .execute(&self.pool)
-                        .await;
-                }
             }
 
             // Stats
