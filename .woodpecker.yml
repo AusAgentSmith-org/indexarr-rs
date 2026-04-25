@@ -142,7 +142,7 @@ steps:
       password:
         from_secret: gh_release_token
       tags: ["latest", "${CI_COMMIT_SHA}"]
-      build_args:
+      build_args_from_env:
         - GIT_AUTH_TOKEN
     environment:
       GIT_AUTH_TOKEN:
@@ -183,7 +183,7 @@ steps:
       password:
         from_secret: gh_release_token
       tags: ["${CI_COMMIT_TAG}", "latest"]
-      build_args:
+      build_args_from_env:
         - GIT_AUTH_TOKEN
     environment:
       GIT_AUTH_TOKEN:
