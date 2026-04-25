@@ -150,12 +150,24 @@ impl MetadataResolver {
 
                     match fetch_metadata(&hash, &peers, timeout, peer_id).await {
                         Ok(meta) => {
+                            tracing::info!(
+                                hash = %hash,
+                                peers = peers.len(),
+                                size = meta.size,
+                                files = meta.files.len(),
+                                "BEP 9 fetch ok"
+                            );
                             if let Err(e) = process_resolved(&pool, &hash, &meta, threshold).await {
-                                tracing::debug!(hash = %hash, error = %e, "failed to store metadata");
+                                tracing::warn!(hash = %hash, error = %e, "failed to store metadata");
                             }
                         }
                         Err(e) => {
-                            tracing::trace!(hash = %hash, error = %e, "metadata fetch failed");
+                            tracing::info!(
+                                hash = %hash,
+                                peers = peers.len(),
+                                error = %e,
+                                "BEP 9 fetch failed"
+                            );
                         }
                     }
                 });
