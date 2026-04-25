@@ -375,6 +375,37 @@ async fn get_announcer_status(
         "SELECT COUNT(*) FROM torrents WHERE announced_at IS NULL AND name IS NOT NULL AND no_peers IS NOT TRUE"
     ).fetch_one(pool).await.map_err(db_err)?;
 
+    // Recency windows for the UI's Worker Status panel.
+    let validated_24h: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM torrents WHERE announced_at > NOW() - INTERVAL '24 hours'",
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(db_err)?;
+    let validated_7d: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM torrents WHERE announced_at > NOW() - INTERVAL '7 days'",
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(db_err)?;
+    let oldest_validation: Option<chrono::DateTime<Utc>> =
+        sqlx::query_scalar("SELECT MIN(announced_at) FROM torrents WHERE announced_at IS NOT NULL")
+            .fetch_one(pool)
+            .await
+            .map_err(db_err)?;
+
+    let uptime_seconds = state.started_at.elapsed().as_secs() as i64;
+
+    // Session announces: torrents whose announced_at falls within this process's
+    // lifetime. Approximate but DB-only; avoids threading a live counter through.
+    let session_cutoff = Utc::now() - chrono::Duration::seconds(uptime_seconds);
+    let total_announced_session: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM torrents WHERE announced_at >= $1")
+            .bind(session_cutoff)
+            .fetch_one(pool)
+            .await
+            .map_err(db_err)?;
+
     let running =
         state.settings.workers.iter().any(|w| w == "announcer") && state.settings.announcer_enabled;
 
@@ -386,6 +417,11 @@ async fn get_announcer_status(
         "pool_settled": 0,
         "announced_count": announced_count,
         "pending_announce_count": pending,
+        "validated_24h": validated_24h,
+        "validated_7d": validated_7d,
+        "oldest_validation": oldest_validation.map(|d| d.to_rfc3339()),
+        "uptime_seconds": uptime_seconds,
+        "total_announced_session": total_announced_session,
     })))
 }
 
