@@ -5,6 +5,13 @@ when:
   - event: manual
   - event: pull_request
 
+variables:
+  # Inject the Forgejo cargo registry credentials at the start of every Rust
+  # step. The repo-local `.cargo/config.toml` defines the registry; this just
+  # writes the bearer token into $CARGO_HOME/credentials.toml.
+  - &cargo_setup |
+      printf '[registries.forgejo]\ntoken = "Bearer %s"\n' "$GIT_AUTH_TOKEN" > $CARGO_HOME/credentials.toml
+
 steps:
 
   # ── Code quality ─────────────────────────────────────────────────────────────
@@ -17,17 +24,29 @@ steps:
 
   - name: check
     image: rust:1.88-bookworm
+    environment:
+      GIT_AUTH_TOKEN:
+        from_secret: git_auth_token
     commands:
+      - *cargo_setup
       - cargo check --workspace
 
   - name: test
     image: rust:1.88-bookworm
+    environment:
+      GIT_AUTH_TOKEN:
+        from_secret: git_auth_token
     commands:
+      - *cargo_setup
       - cargo test --workspace
 
   - name: clippy
     image: rust:1.88-bookworm
+    environment:
+      GIT_AUTH_TOKEN:
+        from_secret: git_auth_token
     commands:
+      - *cargo_setup
       - rustup component add clippy
       - cargo clippy --workspace -- -D warnings
 
@@ -45,7 +64,11 @@ steps:
 
   - name: build-linux
     image: rust:1.88-bookworm
+    environment:
+      GIT_AUTH_TOKEN:
+        from_secret: git_auth_token
     commands:
+      - *cargo_setup
       - |
         if [ -n "$CI_COMMIT_TAG" ]; then
           export CARGO_PROFILE_RELEASE_LTO=fat
@@ -73,7 +96,11 @@ steps:
 
   - name: build-windows
     image: rust:1.88-bookworm
+    environment:
+      GIT_AUTH_TOKEN:
+        from_secret: git_auth_token
     commands:
+      - *cargo_setup
       - apt-get update && apt-get install -y --no-install-recommends clang llvm lld cmake nasm nsis
       - cargo install cargo-xwin@0.18.6 --index https://github.com/rust-lang/crates.io-index
       - rustup target add x86_64-pc-windows-msvc

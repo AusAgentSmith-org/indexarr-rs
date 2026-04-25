@@ -12,8 +12,11 @@ indexarr-core.workspace = true
 indexarr-parser = { path = "../indexarr-parser" }
 indexarr-classifier = { path = "../indexarr-classifier" }
 
-# DHT library (re-exports Id20 from librtbit-core)
-dht = { version = "0.1.1", package = "librtbit-dht" }
+# DHT library (re-exports Id20 from librtbit-core). Sourced from the Forgejo
+# cargo registry to keep all librtbit-* deps unified across the workspace
+# (resolver-v2 needs librtbit-peer-protocol which is Forgejo-only; the same
+# crate from a second registry would be treated as distinct by cargo).
+dht = { version = "0.1.1", package = "librtbit-dht", registry = "forgejo" }
 
 # Async
 tokio.workspace = true
