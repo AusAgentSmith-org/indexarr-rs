@@ -13,6 +13,17 @@ const { formatNumber } = useFormatters()
 const status = ref<AnnouncerStatus | null>(null)
 const recentAnnounced = ref<AnnouncedResult[]>([])
 const error = ref<string | null>(null)
+const sortField = ref('date')
+const sortOrder = ref<'asc' | 'desc'>('desc')
+
+function handleSort(field: string) {
+  if (sortField.value === field) {
+    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortField.value = field
+    sortOrder.value = 'desc'
+  }
+}
 
 async function loadStatus() {
   try {
@@ -28,12 +39,40 @@ async function loadStatus() {
   }
 }
 
-const recentAsRows = computed(() =>
-  recentAnnounced.value.map(r => ({
+const recentAsRows = computed(() => {
+  const list = recentAnnounced.value.map(r => ({
     ...r,
     resolved_at: r.announced_at,
   }))
-)
+  const field = sortField.value
+  const dir = sortOrder.value === 'asc' ? 1 : -1
+  list.sort((a, b) => {
+    let va: any, vb: any
+    switch (field) {
+      case 'name':
+        va = (a.name || '').toLowerCase()
+        vb = (b.name || '').toLowerCase()
+        return va < vb ? -dir : va > vb ? dir : 0
+      case 'content_type':
+        va = (a.content_type || '').toLowerCase()
+        vb = (b.content_type || '').toLowerCase()
+        return va < vb ? -dir : va > vb ? dir : 0
+      case 'size':
+        return ((a.size || 0) - (b.size || 0)) * dir
+      case 'seeders':
+        return ((a.seed_count || 0) - (b.seed_count || 0)) * dir
+      case 'leechers':
+        return ((a.peer_count || 0) - (b.peer_count || 0)) * dir
+      case 'date':
+        va = a.resolved_at || ''
+        vb = b.resolved_at || ''
+        return va < vb ? -dir : va > vb ? dir : 0
+      default:
+        return 0
+    }
+  })
+  return list
+})
 
 const { isRefreshing } = useAutoRefresh(loadStatus, 10000)
 
@@ -265,6 +304,9 @@ const throughput = computed(() => {
               :torrents="recentAsRows"
               :show-date="true"
               :loading="!status"
+              :sort-field="sortField"
+              :sort-order="sortOrder"
+              @sort="handleSort"
             />
           </div>
         </div>
