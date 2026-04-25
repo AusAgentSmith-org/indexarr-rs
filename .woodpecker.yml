@@ -142,6 +142,11 @@ steps:
       password:
         from_secret: gh_release_token
       tags: ["latest", "${CI_COMMIT_SHA}"]
+      build_args:
+        - GIT_AUTH_TOKEN
+    environment:
+      GIT_AUTH_TOKEN:
+        from_secret: git_auth_token
     when:
       - event: push
         branch: main
@@ -178,6 +183,11 @@ steps:
       password:
         from_secret: gh_release_token
       tags: ["${CI_COMMIT_TAG}", "latest"]
+      build_args:
+        - GIT_AUTH_TOKEN
+    environment:
+      GIT_AUTH_TOKEN:
+        from_secret: git_auth_token
     when:
       - event: tag
 

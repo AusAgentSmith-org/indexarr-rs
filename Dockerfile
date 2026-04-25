@@ -15,7 +15,21 @@ RUN npm run build
 # =============================================================================
 FROM rust:1-bookworm AS rust-builder
 
+# GIT_AUTH_TOKEN is the Forgejo bearer token used to fetch librtbit-* deps from
+# the Forgejo cargo registry. Passed in as a build_arg from .woodpecker.yml.
+# PLUGIN_PASSWORD is the fallback when running under woodpeckerci/plugin-docker-buildx
+# without an explicit build_args entry (the plugin auto-exposes its `password:`
+# field as $PLUGIN_PASSWORD inside the build context).
+ARG GIT_AUTH_TOKEN=""
+ARG PLUGIN_PASSWORD=""
+
 WORKDIR /build
+
+# Wire up the Forgejo cargo registry inside the builder. Mirrors the project's
+# .cargo/config.toml so deps with `registry = "forgejo"` resolve at build time.
+RUN printf '[registries.forgejo]\nindex = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"\ncredential-provider = "cargo:token"\n\n[registry]\ndefault = "forgejo"\n' > $CARGO_HOME/config.toml && \
+    TOKEN="${GIT_AUTH_TOKEN:-$PLUGIN_PASSWORD}" && \
+    printf '[registries.forgejo]\ntoken = "Bearer %s"\n' "$TOKEN" > $CARGO_HOME/credentials.toml
 
 # Cache dependencies by building a dummy project first
 COPY Cargo.toml Cargo.lock ./
