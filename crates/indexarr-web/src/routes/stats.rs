@@ -268,11 +268,15 @@ async fn get_recent(
     Query(params): Query<LimitParam>,
 ) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, String)> {
     let limit = params.limit.unwrap_or(50).clamp(1, 100);
+    // "Recently Indexed" = anything we have metadata for. Don't gate on
+    // announced_at / seed_count: those represent tracker-validation state,
+    // not indexing state, and would hide imports / freshly-resolved torrents
+    // until the announcer finishes its rounds.
     let rows = sqlx::query(
         "SELECT t.info_hash, t.name, t.size, t.seed_count, t.peer_count, t.resolved_at, t.source, t.trackers, \
          c.content_type, c.resolution \
          FROM torrents t LEFT JOIN torrent_content c ON t.info_hash = c.info_hash \
-         WHERE t.resolved_at IS NOT NULL AND t.announced_at IS NOT NULL AND t.seed_count >= 1 \
+         WHERE t.resolved_at IS NOT NULL \
          ORDER BY t.resolved_at DESC LIMIT $1"
     )
     .bind(limit)
