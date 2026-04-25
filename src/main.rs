@@ -145,6 +145,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "Indexarr v0.1.0 — starting workers"
     );
 
+    // Reflect the actually-resolved worker list back into settings so HTTP
+    // handlers (e.g. /api/v1/dht/status, /announcer/status) can report which
+    // workers are scheduled on this node. Without this they stay on the
+    // env-derived value, which is empty for `--all` invocations.
+    settings.workers = workers.clone();
+
     // Initialize database
     let pool = db::init_db(&settings).await?;
     tracing::info!("database initialized");

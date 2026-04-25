@@ -243,9 +243,11 @@ async fn get_dht_status(
             .await
             .map_err(db_err)?;
 
+    let dht_running = state.settings.workers.iter().any(|w| w == "dht_crawler");
+
     Ok(Json(serde_json::json!({
-        "dht_running": false,
-        "instances": 0,
+        "dht_running": dht_running,
+        "instances": if dht_running { state.settings.dht_instances } else { 0 },
         "routing_table_nodes": 0,
         "routing_table_good": 0,
         "hash_queue_size": 0,
@@ -373,8 +375,11 @@ async fn get_announcer_status(
         "SELECT COUNT(*) FROM torrents WHERE announced_at IS NULL AND name IS NOT NULL AND no_peers IS NOT TRUE"
     ).fetch_one(pool).await.map_err(db_err)?;
 
+    let running =
+        state.settings.workers.iter().any(|w| w == "announcer") && state.settings.announcer_enabled;
+
     Ok(Json(serde_json::json!({
-        "running": false,
+        "running": running,
         "enabled": state.settings.announcer_enabled,
         "pool_size": state.settings.announcer_pool_size,
         "pool_active": 0,
