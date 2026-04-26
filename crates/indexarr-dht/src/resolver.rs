@@ -186,7 +186,7 @@ impl MetadataResolver {
                     }
 
                     match fetch_metadata(&hash, &peers, timeout, peer_id).await {
-                        Ok((meta, harvested_peers)) => {
+                        Ok((meta, harvested_peers, harvested_trackers)) => {
                             // Free peers from the winning peer's ut_pex messages —
                             // fold them into shared.peer_cache for the next batch.
                             let cached = if !harvested_peers.is_empty() {
@@ -201,10 +201,16 @@ impl MetadataResolver {
                                 files = meta.files.len(),
                                 pex = harvested_peers.len(),
                                 pex_cached = cached,
+                                lt_tex = harvested_trackers.len(),
                                 "BEP 9 fetch ok"
                             );
                             if let Err(e) = process_resolved(&pool, &hash, &meta, threshold).await {
                                 tracing::warn!(hash = %hash, error = %e, "failed to store metadata");
+                            }
+                            if !harvested_trackers.is_empty() {
+                                let _ = merge_trackers(&pool, &hash, &harvested_trackers)
+                                    .await
+                                    .map_err(|e| tracing::warn!(hash = %hash, error = %e, "failed to merge lt_tex trackers"));
                             }
                         }
                         Err(e) => {
@@ -341,20 +347,13 @@ struct FileEntry {
 
 /// Fetch metadata for an info_hash from a list of candidate peers via BEP 9.
 ///
-/// Races peers in parallel (up to [`DEFAULT_MAX_CONCURRENT_PEERS`] in flight
-/// at once) via `fetch_from_peers`; first peer that returns a SHA1-verified
-/// info dict wins. We then parse those bytes into the structured
-/// `ResolvedMeta` shape the rest of the pipeline expects.
-///
-/// Also returns any peers we harvested from `ut_pex` (BEP 11) messages on
-/// the winning peer's connection — these are typically active peers we'd
-/// have had to spend a query to discover otherwise.
+/// Returns `(meta, harvested_peers, harvested_trackers)`.
 async fn fetch_metadata(
     info_hash: &str,
     peers: &[SocketAddr],
     timeout_secs: u64,
     peer_id: Id20,
-) -> Result<(ResolvedMeta, Vec<SocketAddr>), String> {
+) -> Result<(ResolvedMeta, Vec<SocketAddr>, Vec<String>), String> {
     if peers.is_empty() {
         return Err(format!("no peers available for {info_hash}"));
     }
@@ -371,7 +370,33 @@ async fn fetch_metadata(
 
     let meta = parse_info_dict(&fetched.bytes)
         .map_err(|e| format!("info dict parse failed after BEP 9 fetch: {e}"))?;
-    Ok((meta, fetched.harvested_peers))
+    Ok((meta, fetched.harvested_peers, fetched.harvested_trackers))
+}
+
+/// Merge tracker URLs harvested via BEP 28 (lt_tex) into the DB for
+/// `info_hash`. De-duplication is handled in SQL — we append only URLs not
+/// already present in the existing JSONB array.
+async fn merge_trackers(
+    pool: &PgPool,
+    info_hash: &str,
+    trackers: &[String],
+) -> Result<(), sqlx::Error> {
+    let json = serde_json::to_value(trackers).unwrap_or(serde_json::Value::Array(vec![]));
+    sqlx::query(
+        "UPDATE torrents \
+         SET trackers = ( \
+           SELECT jsonb_agg(DISTINCT t) \
+           FROM jsonb_array_elements( \
+             COALESCE(trackers, '[]'::jsonb) || $2::jsonb \
+           ) AS t \
+         ) \
+         WHERE info_hash = $1",
+    )
+    .bind(info_hash)
+    .bind(&json)
+    .execute(pool)
+    .await?;
+    Ok(())
 }
 
 /// Parse a bencoded `info` dict into the resolver's `ResolvedMeta` shape.

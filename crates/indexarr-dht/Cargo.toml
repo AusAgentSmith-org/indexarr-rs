@@ -9,6 +9,7 @@ workspace = true
 
 [dependencies]
 indexarr-core.workspace = true
+indexarr-bep51 = { path = "../indexarr-bep51" }
 indexarr-parser = { path = "../indexarr-parser" }
 indexarr-classifier = { path = "../indexarr-classifier" }
 

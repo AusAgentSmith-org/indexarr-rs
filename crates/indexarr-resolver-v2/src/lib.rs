@@ -19,14 +19,36 @@ use std::time::Duration;
 
 use bencode::bencode_serialize_to_writer;
 use buffers::ByteBuf;
+use indexarr_bep28::decode as decode_lt_tex;
 use librtbit_core::{constants::CHUNK_SIZE, hash_id::Id20};
 use peer_protocol::{
     Handshake, Message, MessageDeserializeError, SerializeError,
-    extended::{
-        ExtendedMessage, PeerExtendedMessageIds, handshake::ExtendedHandshake,
-        ut_metadata::UtMetadata,
-    },
+    extended::{ExtendedMessage, PeerExtendedMessageIds, ut_metadata::UtMetadata},
 };
+
+/// Our local BEP 10 extension ID for lt_tex (BEP 28). Peers that receive our
+/// extended handshake will use this ID when sending lt_tex messages to us.
+/// Must not collide with the IDs declared in `PeerExtendedMessageIds::my()`:
+/// ut_pex=1, ut_metadata=3, ut_holepunch=4.
+const LT_TEX_LOCAL_ID: u8 = 2;
+
+/// Extended-handshake `m` dict that includes all extensions we support,
+/// including `lt_tex` which is not yet part of `PeerExtendedMessageIds`.
+/// Fields declared in alphabetical key order for bencode compliance.
+#[derive(serde::Serialize)]
+struct OurExtIds {
+    lt_tex: u8,
+    ut_holepunch: u8,
+    ut_metadata: u8,
+    ut_pex: u8,
+}
+
+/// Minimal outgoing extended-handshake (only `m` needed — all other fields
+/// stay at their defaults, which bencode-serializes as absent).
+#[derive(serde::Serialize)]
+struct OurExtHandshake {
+    m: OurExtIds,
+}
 use sha1::{Digest, Sha1};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -105,6 +127,9 @@ pub struct FetchedMetadata {
     /// during the metadata fetch. Free peers — feed into a peer cache for
     /// future fetches against the same info_hash.
     pub harvested_peers: Vec<SocketAddr>,
+    /// Tracker URLs harvested via BEP 28 (lt_tex) messages from the serving
+    /// peer. Merge these into `torrents.trackers` for the info_hash.
+    pub harvested_trackers: Vec<String>,
 }
 
 /// Generate a fresh peer_id with the standard rtbit-style prefix.
@@ -262,14 +287,15 @@ async fn fetch_inner(
     }
     tracing::trace!(?peer_addr, ?info_hash, "bt handshake ok");
 
-    // PEX harvest accumulator — populated opportunistically as `ut_pex`
-    // messages arrive interleaved with the BEP 9 conversation.
+    // PEX harvest accumulator (BEP 11) — populated as ut_pex messages arrive.
     let mut harvested_peers: Vec<SocketAddr> = Vec::new();
+    // Tracker harvest accumulator (BEP 28) — populated as lt_tex messages arrive.
+    let mut harvested_trackers: Vec<String> = Vec::new();
 
     // ─── BEP 10 extended handshake ──────────────────────────────────────
     send_extended_handshake(&mut stream).await?;
     let (ut_metadata_id, total_size) =
-        recv_extended_handshake(&mut stream, &mut harvested_peers).await?;
+        recv_extended_handshake(&mut stream, &mut harvested_peers, &mut harvested_trackers).await?;
     if total_size == 0 {
         return Err(ResolverError::EmptyMetadata);
     }
@@ -288,7 +314,13 @@ async fn fetch_inner(
 
     for piece in 0..total_pieces {
         send_metadata_request(&mut stream, piece, peer_ids).await?;
-        let chunk = recv_metadata_data(&mut stream, piece, &mut harvested_peers).await?;
+        let chunk = recv_metadata_data(
+            &mut stream,
+            piece,
+            &mut harvested_peers,
+            &mut harvested_trackers,
+        )
+        .await?;
         let offset = (piece as usize) * METADATA_PIECE_SIZE as usize;
         let end = offset + chunk.len();
         if end > metadata.len() {
@@ -299,25 +331,41 @@ async fn fetch_inner(
     }
 
     if !harvested_peers.is_empty() {
-        // De-dupe — peers can show up across multiple ut_pex frames.
         harvested_peers.sort();
         harvested_peers.dedup();
         tracing::trace!(?peer_addr, count = harvested_peers.len(), "ut_pex harvest");
     }
 
+    if !harvested_trackers.is_empty() {
+        harvested_trackers.sort();
+        harvested_trackers.dedup();
+        tracing::trace!(
+            ?peer_addr,
+            count = harvested_trackers.len(),
+            "lt_tex harvest"
+        );
+    }
+
     Ok(FetchedMetadata {
         bytes: metadata,
         harvested_peers,
+        harvested_trackers,
     })
 }
 
 async fn send_extended_handshake(stream: &mut TcpStream) -> Result<(), ResolverError> {
-    // Build the bencoded extended-handshake payload directly (avoids needing
-    // the peer's ut_metadata id, which we don't know yet).
+    // Build the bencoded extended-handshake payload with our full extension
+    // map, including lt_tex (BEP 28) which is not in PeerExtendedMessageIds.
+    // Using a custom struct keeps the IDs explicit and in alphabetical key
+    // order (required by bencode spec).
     let mut payload = Vec::with_capacity(64);
-    let h = ExtendedHandshake::<ByteBuf<'_>> {
-        m: PeerExtendedMessageIds::my(),
-        ..Default::default()
+    let h = OurExtHandshake {
+        m: OurExtIds {
+            lt_tex: LT_TEX_LOCAL_ID,
+            ut_holepunch: peer_protocol::MY_EXTENDED_UT_HOLEPUNCH,
+            ut_metadata: peer_protocol::MY_EXTENDED_UT_METADATA,
+            ut_pex: peer_protocol::MY_EXTENDED_UT_PEX,
+        },
     };
     bencode_serialize_to_writer(&h, &mut payload)?;
 
@@ -335,7 +383,8 @@ async fn send_extended_handshake(stream: &mut TcpStream) -> Result<(), ResolverE
 
 async fn recv_extended_handshake(
     stream: &mut TcpStream,
-    harvested: &mut Vec<SocketAddr>,
+    harvested_peers: &mut Vec<SocketAddr>,
+    harvested_trackers: &mut Vec<String>,
 ) -> Result<(u8, u32), ResolverError> {
     loop {
         let frame = read_frame(stream).await?;
@@ -348,14 +397,15 @@ async fn recv_extended_handshake(
                 return Ok((id, size));
             }
             Message::Extended(ExtendedMessage::UtPex(pex)) => {
-                harvest_pex(&pex, harvested);
+                harvest_pex(&pex, harvested_peers);
                 continue;
             }
-            // Tolerate any non-extended-handshake message that arrives first
-            // (Bitfield, Have, KeepAlive, choke/unchoke from over-eager peers,
-            // etc.). The Extended-but-not-Handshake case is also fine here —
-            // peers shouldn't send other extended messages before they've
-            // received our handshake, but if they do we just skip them.
+            Message::Extended(ExtendedMessage::Dyn(id, ref payload)) if id == LT_TEX_LOCAL_ID => {
+                let mut raw = Vec::new();
+                let _ = bencode_serialize_to_writer(payload, &mut raw);
+                harvest_lt_tex(&raw, harvested_trackers);
+                continue;
+            }
             other => {
                 tracing::trace!(?other, "ignoring pre-extended-handshake message");
                 continue;
@@ -383,7 +433,8 @@ async fn send_metadata_request(
 async fn recv_metadata_data(
     stream: &mut TcpStream,
     expected_piece: u32,
-    harvested: &mut Vec<SocketAddr>,
+    harvested_peers: &mut Vec<SocketAddr>,
+    harvested_trackers: &mut Vec<String>,
 ) -> Result<Vec<u8>, ResolverError> {
     loop {
         let frame = read_frame(stream).await?;
@@ -404,10 +455,15 @@ async fn recv_metadata_data(
                 return Err(ResolverError::PieceRejected(p));
             }
             Message::Extended(ExtendedMessage::UtPex(pex)) => {
-                harvest_pex(&pex, harvested);
+                harvest_pex(&pex, harvested_peers);
                 continue;
             }
-            // Tolerate non-metadata traffic interleaved with our fetch.
+            Message::Extended(ExtendedMessage::Dyn(id, ref payload)) if id == LT_TEX_LOCAL_ID => {
+                let mut raw = Vec::new();
+                let _ = bencode_serialize_to_writer(payload, &mut raw);
+                harvest_lt_tex(&raw, harvested_trackers);
+                continue;
+            }
             _ => continue,
         }
     }
@@ -422,6 +478,19 @@ fn harvest_pex(
 ) {
     for info in pex.added_peers() {
         harvested.push(info.addr);
+    }
+}
+
+/// Parse a bencoded lt_tex (BEP 28) payload and append valid tracker URLs to
+/// `harvested`. Invalid UTF-8 or malformed payloads are silently skipped.
+fn harvest_lt_tex(raw: &[u8], harvested: &mut Vec<String>) {
+    let Ok(msg) = decode_lt_tex(raw) else {
+        return;
+    };
+    for (url_bytes, _flags) in msg.iter() {
+        if let Ok(url) = std::str::from_utf8(url_bytes) {
+            harvested.push(url.to_owned());
+        }
     }
 }
 

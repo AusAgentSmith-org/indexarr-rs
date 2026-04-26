@@ -130,6 +130,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "resolver",
             "announcer",
             "sync",
+            "peer_refresher",
+            "bep51_sampler",
         ]
         .into_iter()
         .map(String::from)
@@ -207,10 +209,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }));
     }
 
-    // DHT crawler + resolver
-    let needs_dht = workers
-        .iter()
-        .any(|w| w == "dht_crawler" || w == "resolver");
+    // DHT crawler + resolver + peer refresher + BEP 51 sampler all share
+    // the DHT engine / shared state.
+    let needs_dht = workers.iter().any(|w| {
+        w == "dht_crawler" || w == "resolver" || w == "peer_refresher" || w == "bep51_sampler"
+    });
     let _dht_engine = if needs_dht {
         let dht_shared = indexarr_dht::DhtSharedState::new();
         let dht_instances = state.settings.dht_instances;
@@ -280,6 +283,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     );
                     handles.push(tokio::spawn(async move {
                         resolver.run().await;
+                    }));
+                }
+
+                // Peer-count refresher — queries DHT for peer counts on
+                // stale or trackerless torrents.
+                if workers.iter().any(|w| w == "peer_refresher") {
+                    let refresh_pool = state.pool.clone();
+                    let refresh_engine = engine.clone();
+                    let refresh_cancel = cancel.clone();
+                    let interval = state.settings.peer_refresh_interval;
+                    let batch = state.settings.peer_refresh_batch as usize;
+                    handles.push(tokio::spawn(async move {
+                        indexarr_dht::peer_refresher::run_peer_refresher(
+                            refresh_pool,
+                            refresh_engine,
+                            refresh_cancel,
+                            batch,
+                            interval,
+                        )
+                        .await;
+                    }));
+                }
+
+                // BEP 51 DHT infohash sampler — sends sample_infohashes
+                // queries to DHT nodes and feeds discovered hashes into the
+                // shared ingest queue.
+                if workers.iter().any(|w| w == "bep51_sampler") && state.settings.dht_enable_bep51 {
+                    let bep51_shared = dht_shared.clone();
+                    let bep51_cancel = cancel.clone();
+                    handles.push(tokio::spawn(async move {
+                        indexarr_dht::bep51_sampler::run_bep51_sampler(bep51_shared, bep51_cancel)
+                            .await;
                     }));
                 }
 
@@ -354,7 +389,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for w in &workers {
         match w.as_str() {
-            "http_server" | "dht_crawler" | "resolver" | "announcer" | "sync" => {}
+            "http_server" | "dht_crawler" | "resolver" | "announcer" | "sync"
+            | "peer_refresher" | "bep51_sampler" => {}
             other => tracing::warn!(worker = other, "unknown worker"),
         }
     }

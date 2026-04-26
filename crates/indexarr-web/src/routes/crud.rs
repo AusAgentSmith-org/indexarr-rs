@@ -90,6 +90,11 @@ pub struct ImportItem {
     source: String,
     #[serde(default)]
     files: Vec<ImportFile>,
+    trackers: Option<Vec<String>>,
+    nfo: Option<String>,
+    seed_count: Option<i32>,
+    peer_count: Option<i32>,
+    discovered_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -131,15 +136,30 @@ async fn import_torrents(
         }
 
         // Insert torrent
+        let trackers_json = item
+            .trackers
+            .as_ref()
+            .filter(|t| !t.is_empty())
+            .map(|t| serde_json::to_value(t).unwrap_or(serde_json::Value::Null));
         sqlx::query(
-            "INSERT INTO torrents (info_hash, name, size, source, resolved_at) \
-             VALUES ($1, $2, $3, $4, CASE WHEN $2 IS NOT NULL THEN NOW() ELSE NULL END) \
+            "INSERT INTO torrents \
+             (info_hash, name, size, source, resolved_at, trackers, nfo, \
+              seed_count, peer_count, discovered_at) \
+             VALUES ($1, $2, $3, $4, \
+                     CASE WHEN $2 IS NOT NULL THEN NOW() ELSE NULL END, \
+                     $5, $6, COALESCE($7, 0), COALESCE($8, 0), \
+                     COALESCE($9, NOW())) \
              ON CONFLICT (info_hash) DO NOTHING",
         )
         .bind(&hash)
         .bind(&item.name)
         .bind(item.size)
         .bind(&item.source)
+        .bind(&trackers_json)
+        .bind(&item.nfo)
+        .bind(item.seed_count)
+        .bind(item.peer_count)
+        .bind(item.discovered_at)
         .execute(pool)
         .await
         .map_err(db_err)?;

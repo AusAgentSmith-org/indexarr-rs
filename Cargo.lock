@@ -1617,6 +1617,7 @@ dependencies = [
  "dashmap",
  "futures",
  "hex 0.4.3",
+ "indexarr-bep51",
  "indexarr-classifier",
  "indexarr-core",
  "indexarr-parser",
@@ -1672,6 +1673,7 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "hex 0.4.3",
+ "indexarr-bep28",
  "librtbit-bencode",
  "librtbit-buffers",
  "librtbit-core",
