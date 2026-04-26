@@ -467,15 +467,23 @@ work item, and per decision #2 above it's deferred until forced.
 | infra | Forgejo cargo registry wired into local + CI + Dockerfile; all librtbit-* deps unified on Forgejo | `.cargo/`, `.woodpecker.yml`, `Dockerfile`, all crate `Cargo.toml`s | `d7cd6dc`, `3cdbc3a`, `e715a0e` |
 | lib fix | `librtbit-peer-protocol 0.1.1 → 0.1.2` — `PeerExtendedMessageIds` skip-None fix + regression test | `librtbit-peer-protocol`, Forgejo registry | `24f8575` |
 
+### Phase D execution log (2026-04-26)
+
+| Item | What shipped | Where | Commit |
+|---|---|---|---|
+| Tier 1.2 | `/api/v1/import` extended — accepts `trackers`, `nfo`, `seed_count`, `peer_count`, `discovered_at`; persists all to DB | `indexarr-web/src/routes/crud.rs` | `b2502ec` |
+| Tier 2.2 | `peer_refresher` worker — DHT peer-count refresh on stale/trackerless resolved torrents; `INDEXARR_PEER_REFRESH_INTERVAL` (default 300s), `INDEXARR_PEER_REFRESH_BATCH` (default 100) | `crates/indexarr-dht/src/peer_refresher.rs` | `b2502ec` |
+| BEP 28 | Live lt_tex consumer in `indexarr-resolver-v2` — advertises `lt_tex` (local ID 2) in BEP 10 extended handshake; harvests incoming lt_tex tracker lists; merges via JSONB union into `torrents.trackers` | `crates/indexarr-resolver-v2/src/lib.rs`, `crates/indexarr-dht/src/resolver.rs` | `b2502ec` |
+| BEP 51 | `bep51_sampler` worker — standalone UDP socket, bootstraps from well-known DHT nodes, sends `sample_infohashes` queries, feeds hashes into shared ingest queue (source="bep51"), expands node queue from response `nodes`; gated on `INDEXARR_DHT_ENABLE_BEP51` | `crates/indexarr-dht/src/bep51_sampler.rs` | `b2502ec` |
+
+**Note on BEP 51 server-side**: the sampler is client-only (outgoing queries). Server-side `sample_infohashes` responses require `librtbit-dht` to expose a KRPC query hook — not in the current public API. Deferred to `librtbit-dht 0.2.0` per decision #3. Not a blocker for hash discovery; client-side alone is the higher-value path.
+
+**Note on BEP 28 send direction**: `indexarr-resolver-v2` currently only RECEIVES lt_tex. Sending our tracker list to peers requires knowing the peer's lt_tex extension ID, which is lost during `ExtendedHandshake` deserialization (`PeerExtendedMessageIds` has no lt_tex field). To send lt_tex, either parse the raw handshake bencode manually or extend `PeerExtendedMessageIds` in `librtbit-peer-protocol`. Deferred — receive-only is sufficient to harvest new trackers from active peers.
+
 End state: all three new crates live in `indexarr-rs/crates/`, all 46
 workspace tests pass, CI green, prod-indexarr on Node B redeployed and
 running real BEP 9 metadata fetch as of `c350bb66f`.
 
-The only Phase A deliverables not actually shipped are:
-- BEP 28 has no live consumer yet — no peer-protocol integration.
-  `indexarr-bep28` is a working codec waiting for a use case.
-- `indexarr-bep51` is a working codec but the actual DHT integration
-  (server-side responses + outgoing queries) is gated on decision #3
-  above — deferred until measured need.
-- Phase C crates.io publishes for the 6 unpublished crates — gated on
-  decisions #2/#3 above.
+Outstanding after 2026-04-25 close-out:
+- Phase C crates.io publishes for the 6 unpublished crates — deferred
+  (see decision #2 above).

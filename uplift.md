@@ -4,9 +4,8 @@ Tracking the gap between what Python Indexarr does today and what indexarr-rs
 needs to fully self-resolve metadata, harvest trackers, and surface real
 seed/peer counts.
 
-Status: parts of Tier 1 are already wired (config defaults via
-`INDEXARR_DEFAULT_TRACKERS`, sync-merge already persists `trackers`); Tier 2
-is the next sprint; Tier 3 is the major follow-up.
+Status: Tier 1 complete. Tier 2 complete. Tier 3 complete (3.1–3.3 shipped;
+3.4 out of scope). See bep-uplift.md Phase D execution log for details.
 
 ---
 
@@ -81,9 +80,9 @@ No DB mutation needed — fallback is computed at scrape time.
 
 ### 1.2 `/api/v1/import` accepts the full record
 
-**Status**: `crates/indexarr-web/src/routes/crud.rs:84-93`. `ImportItem`
-currently only has `info_hash`, `name`, `size`, `source`, `files`. Drops
-trackers, nfo, seed/peer counts on the floor.
+**Status**: ✅ **Complete** (2026-04-26, commit `b2502ec`). `ImportItem` now
+accepts `trackers`, `nfo`, `seed_count`, `peer_count`, `discovered_at` and
+binds them in the INSERT.
 
 Action:
 - Extend `ImportItem` with optional fields:
@@ -110,16 +109,9 @@ re-implementing it.
 
 ### 2.1 BEP 15 — UDP tracker scrape
 
+**Status**: ✅ **Complete** (commit `a699787`).
+
 **Spec**: <https://www.bittorrent.org/beps/bep_0015.html>
-
-The announcer's `scrape_trackers()` at
-`crates/indexarr-announcer/src/lib.rs:270-307` filters out `udp://` entries
-("BEP 15 scrape deferred"). Most of the public swarm is UDP-only.
-
-**`librtbit-tracker-comms = "3.0.0"` already implements BEP 15 in full** —
-`tracker_comms_udp.rs` covers the `0x41727101980` connect handshake,
-announce, and scrape with proper transaction-id verification and
-connection-id caching. No new wire-protocol code needed.
 
 Action:
 - Add `librtbit-tracker-comms = { version = "3", registry = "forgejo" }` to
@@ -134,9 +126,10 @@ Action:
 
 ### 2.2 DHT peer-count refresher worker
 
-The DHT engine already has `discover_peers(&[hash]) -> DashMap<hash, Vec<SocketAddr>>`
-in `crates/indexarr-dht/src/engine.rs:163`. It works. Nothing currently
-queues stale hashes through it for re-validation.
+**Status**: ✅ **Complete** (2026-04-26, commit `b2502ec`). `peer_refresher`
+worker in `crates/indexarr-dht/src/peer_refresher.rs`. Included in `--all`.
+Interval: `INDEXARR_PEER_REFRESH_INTERVAL` (default 300s); batch:
+`INDEXARR_PEER_REFRESH_BATCH` (default 100).
 
 New worker (~60 lines, lives in `indexarr-dht::peer_refresher` or similar):
 
@@ -199,9 +192,9 @@ crates together" work, not "implement the wire format from scratch".
 
 ### 3.1 BEP 9 — ut_metadata fetch (replace the stub)
 
-**Spec**: <https://www.bittorrent.org/beps/bep_0009.html>
+**Status**: ✅ **Complete** (commit `c350bb6`).
 
-`crates/indexarr-dht/src/resolver.rs:291-317` is currently a stub.
+**Spec**: <https://www.bittorrent.org/beps/bep_0009.html>
 
 Approach: depend on `librtbit-peer-protocol` and either (a) call into
 rustTorrent's `librtbit::peer_info_reader` if it can be reused as-is, or
@@ -234,10 +227,13 @@ info-dict parse.
 
 ### 3.2 BEP 28 — Tracker Exchange (`lt_tex`)
 
-**Spec**: <https://www.bittorrent.org/beps/bep_0028.html>
+**Status**: ✅ **Receive-side complete** (2026-04-26, commit `b2502ec`).
+We advertise `lt_tex` in every BEP 10 handshake and harvest incoming tracker
+lists into `torrents.trackers`. Send-side (giving peers our tracker list)
+deferred — requires the peer's lt_tex ID from their handshake, which is
+currently dropped by `PeerExtendedMessageIds` deserialization.
 
-Not implemented in rustTorrent — net-new code. But the BEP 10 plumbing
-from 3.1 makes this small: it's just one extra extension message type.
+**Spec**: <https://www.bittorrent.org/beps/bep_0028.html>
 
 After 3.1 is wired:
 1. In our extended handshake's `m` dict, advertise `lt_tex` with a local
@@ -258,10 +254,9 @@ and (optionally) `dropped: Vec<String>`.
 
 ### 3.3 BEP 11 — Peer Exchange (PEX, `ut_pex`)
 
-**Spec**: <https://www.bittorrent.org/beps/bep_0011.html>
+**Status**: ✅ **Complete** (commit `7ae439a`).
 
-Already implemented in `librtbit-peer-protocol` (`extended/ut_pex.rs`).
-Just turn it on:
+**Spec**: <https://www.bittorrent.org/beps/bep_0011.html>
 - Advertise `ut_pex` in our extended handshake's `m` dict.
 - On receipt of a `ut_pex` message, decode the `added` / `added.f` peer
   lists and feed them into the DHT shared peer cache (the type
