@@ -248,6 +248,18 @@ CREATE TABLE IF NOT EXISTS nuke_suggestions (
 CREATE INDEX IF NOT EXISTS idx_nuke_info_hash ON nuke_suggestions (info_hash);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_nuke_unique_per_ip ON nuke_suggestions (info_hash, fingerprint);
 CREATE INDEX IF NOT EXISTS idx_nuke_reviewed ON nuke_suggestions (reviewed) WHERE reviewed IS FALSE;
+
+-- Peer records (DHT-style: signed DeviceId → address announcements for rsSync)
+CREATE TABLE IF NOT EXISTS peer_records (
+    device_id   VARCHAR(64) PRIMARY KEY,
+    addresses   JSONB NOT NULL,
+    expiry      TIMESTAMPTZ NOT NULL,
+    public_key  VARCHAR(100) NOT NULL,
+    signature   VARCHAR(200) NOT NULL,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_peer_records_expiry ON peer_records (expiry);
 "#;
 
 const SEARCH_VECTOR_TRIGGER_SQL: &str = r#"

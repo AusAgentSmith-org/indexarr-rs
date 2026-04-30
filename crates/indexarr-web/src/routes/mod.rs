@@ -3,6 +3,7 @@ pub mod crud;
 pub mod health;
 pub mod identity;
 pub mod queue;
+pub mod records;
 pub mod search;
 pub mod social;
 pub mod stats;
@@ -30,4 +31,5 @@ pub fn api_router(_state: Arc<AppState>) -> Router<Arc<AppState>> {
         .merge(system::router())
         .merge(crud::router())
         .merge(sync::router())
+        .merge(records::router())
 }
