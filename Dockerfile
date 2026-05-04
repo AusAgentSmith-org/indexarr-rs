@@ -46,9 +46,9 @@ RUN touch src/main.rs && cargo build --release
 # =============================================================================
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+# Copy CA bundle from builder to avoid apt-get, which can fail with GPG
+# signature errors inside isolated plugin Docker daemons.
+COPY --from=rust-builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
 WORKDIR /app
 
