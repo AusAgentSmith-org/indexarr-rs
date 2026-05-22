@@ -101,7 +101,9 @@ steps:
         from_secret: git_auth_token
     commands:
       - *cargo_setup
-      - apt-get update && apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu
+      - apt-get update && apt-get install -y --no-install-recommends
+          gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          libc6-dev-arm64-cross cmake
       - rustup target add aarch64-unknown-linux-gnu
       - |
         if [ -n "$CI_COMMIT_TAG" ]; then
