@@ -92,6 +92,41 @@ steps:
       - event: tag
       - event: manual
 
+  # ── Linux ARM64 binary + tarball ────────────────────────────────────────────
+
+  - name: build-linux-arm64
+    image: rust:1.88-bookworm
+    environment:
+      GIT_AUTH_TOKEN:
+        from_secret: git_auth_token
+    commands:
+      - *cargo_setup
+      - apt-get update && apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu
+      - rustup target add aarch64-unknown-linux-gnu
+      - |
+        if [ -n "$CI_COMMIT_TAG" ]; then
+          export CARGO_PROFILE_RELEASE_LTO=fat
+          export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+          export CARGO_PROFILE_RELEASE_STRIP=symbols
+        fi
+      - CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+          cargo build --release --target aarch64-unknown-linux-gnu
+      - ls -lh target/aarch64-unknown-linux-gnu/release/indexarr
+      - |
+        if [ -n "$CI_COMMIT_TAG" ]; then
+          TAG="$CI_COMMIT_TAG"
+        else
+          TAG=$(echo $CI_COMMIT_SHA | head -c 9)
+        fi
+        mkdir -p staging-arm64/ui
+        cp target/aarch64-unknown-linux-gnu/release/indexarr staging-arm64/indexarr
+        cp -r ui/dist staging-arm64/ui/dist
+        tar -czf "indexarr-$TAG-linux-aarch64.tar.gz" -C staging-arm64 .
+        ls -lh "indexarr-$TAG-linux-aarch64.tar.gz"
+    when:
+      - event: tag
+      - event: manual
+
   # ── Windows binary + NSIS installer ─────────────────────────────────────────
 
   - name: build-windows
@@ -222,6 +257,7 @@ steps:
 
         sha256sum \
           "indexarr-$TAG-linux-x86_64.tar.gz" \
+          "indexarr-$TAG-linux-aarch64.tar.gz" \
           "indexarr-$TAG-linux-install.sh" \
           "indexarr-$TAG-windows-x86_64.exe" \
           "indexarr-$TAG-windows-x86_64-setup.exe" \
@@ -250,6 +286,7 @@ steps:
 
         for file in \
           "indexarr-$TAG-linux-x86_64.tar.gz" \
+          "indexarr-$TAG-linux-aarch64.tar.gz" \
           "indexarr-$TAG-linux-install.sh" \
           "indexarr-$TAG-windows-x86_64.exe" \
           "indexarr-$TAG-windows-x86_64-setup.exe" \
