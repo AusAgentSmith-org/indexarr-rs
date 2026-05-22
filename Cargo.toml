@@ -41,6 +41,8 @@ indexarr-announcer = { path = "crates/indexarr-announcer" }
 indexarr-sync = { path = "crates/indexarr-sync" }
 indexarr-xmpp = { path = "crates/indexarr-xmpp" }
 
+openssl = { version = "0.10", features = ["vendored"], optional = true }
+
 clap.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
@@ -127,6 +129,11 @@ indexarr-announcer = { path = "crates/indexarr-announcer" }
 indexarr-sync = { path = "crates/indexarr-sync" }
 indexarr-tmdb = { path = "crates/indexarr-tmdb" }
 indexarr-xmpp = { path = "crates/indexarr-xmpp" }
+
+[features]
+# Activate for ARM cross-compilation to vendor OpenSSL from source.
+# Feature-unifies with the transitive openssl dep, enabling openssl-src.
+vendored-ssl = ["dep:openssl"]
 
 [profile.dev]
 panic = "abort"
