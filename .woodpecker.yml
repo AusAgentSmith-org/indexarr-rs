@@ -138,6 +138,7 @@ steps:
         from_secret: git_auth_token
     commands:
       - *cargo_setup
+      - rm -rf ~/.cache/cargo-xwin
       - apt-get update && apt-get install -y --no-install-recommends clang llvm lld cmake nasm nsis
       - cargo install cargo-xwin@0.18.6 --index https://github.com/rust-lang/crates.io-index
       - rustup target add x86_64-pc-windows-msvc
