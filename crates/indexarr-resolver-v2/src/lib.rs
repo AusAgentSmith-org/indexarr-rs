@@ -130,6 +130,47 @@ pub struct FetchedMetadata {
     /// Tracker URLs harvested via BEP 28 (lt_tex) messages from the serving
     /// peer. Merge these into `torrents.trackers` for the info_hash.
     pub harvested_trackers: Vec<String>,
+    /// Failures completed by other raced peers before this peer succeeded.
+    pub prior_peer_failures: PeerFailureSummary,
+}
+
+/// Failure categories observed while racing peers for one info-hash.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct PeerFailureSummary {
+    pub total: u32,
+    pub connect: u32,
+    pub no_bep10: u32,
+    pub timeout: u32,
+    pub other: u32,
+}
+
+impl PeerFailureSummary {
+    fn record(&mut self, error: &ResolverError) {
+        self.total += 1;
+        match error {
+            ResolverError::Connect(_) => self.connect += 1,
+            ResolverError::ExtendedNotSupported
+            | ResolverError::NoUtMetadataId
+            | ResolverError::NoMetadataSize => self.no_bep10 += 1,
+            ResolverError::Timeout(_) => self.timeout += 1,
+            _ => self.other += 1,
+        }
+    }
+}
+
+/// Every candidate peer failed for an info-hash.
+#[derive(Debug, thiserror::Error)]
+#[error(
+    "all {attempted} peers failed (connect={connect}, no_bep10={no_bep10}, timeout={timeout}, other={other}; last: {last})",
+    attempted = .summary.total,
+    connect = .summary.connect,
+    no_bep10 = .summary.no_bep10,
+    timeout = .summary.timeout,
+    other = .summary.other,
+)]
+pub struct FetchPeersError {
+    pub last: ResolverError,
+    pub summary: PeerFailureSummary,
 }
 
 /// Generate a fresh peer_id with the standard rtbit-style prefix.
@@ -154,8 +195,8 @@ pub const DEFAULT_MAX_CONCURRENT_PEERS: usize = 8;
 /// - As each one completes, if it succeeded the function returns immediately
 ///   and the remaining in-flight futures are cancelled by drop.
 /// - If it failed, the next un-tried peer (if any) is started in its place.
-/// - If every peer fails, returns the *last* `ResolverError` seen — caller
-///   gets a representative failure rather than a "no peers" sentinel.
+/// - If every peer fails, returns the last error plus a category summary for
+///   every peer attempted.
 ///
 /// Empty `peers` slice → returns [`ResolverError::Connect`] with an
 /// `ErrorKind::AddrNotAvailable` sentinel (no real connection was attempted).
@@ -165,14 +206,17 @@ pub async fn fetch_from_peers(
     peer_id: Id20,
     config: FetchConfig,
     max_concurrent: usize,
-) -> Result<FetchedMetadata, ResolverError> {
+) -> Result<FetchedMetadata, FetchPeersError> {
     use futures::stream::{FuturesUnordered, StreamExt};
 
     if peers.is_empty() {
-        return Err(ResolverError::Connect(std::io::Error::new(
-            std::io::ErrorKind::AddrNotAvailable,
-            "no peers to try",
-        )));
+        return Err(FetchPeersError {
+            last: ResolverError::Connect(std::io::Error::new(
+                std::io::ErrorKind::AddrNotAvailable,
+                "no peers to try",
+            )),
+            summary: PeerFailureSummary::default(),
+        });
     }
 
     let cap = max_concurrent.max(1).min(peers.len());
@@ -201,25 +245,17 @@ pub async fn fetch_from_peers(
         in_flight.push(make_fut(peer));
     }
 
-    // Error type counters for the summary log when all peers fail.
-    let mut n_connect = 0u32;
-    let mut n_no_ext = 0u32;
-    let mut n_timeout = 0u32;
-    let mut n_other = 0u32;
+    let mut summary = PeerFailureSummary::default();
     let mut last_err: Option<ResolverError> = None;
 
     while let Some((peer, result)) = in_flight.next().await {
         match result {
-            Ok(meta) => return Ok(meta),
+            Ok(mut meta) => {
+                meta.prior_peer_failures = summary;
+                return Ok(meta);
+            }
             Err(e) => {
-                match &e {
-                    ResolverError::Connect(_) => n_connect += 1,
-                    ResolverError::ExtendedNotSupported
-                    | ResolverError::NoUtMetadataId
-                    | ResolverError::NoMetadataSize => n_no_ext += 1,
-                    ResolverError::Timeout(_) => n_timeout += 1,
-                    _ => n_other += 1,
-                }
+                summary.record(&e);
                 tracing::debug!(?peer, ?info_hash, error = %e, "BEP9 peer failed");
                 last_err = Some(e);
             }
@@ -234,14 +270,17 @@ pub async fn fetch_from_peers(
 
     tracing::debug!(
         ?info_hash,
-        total = peers.len(),
-        connect_fail = n_connect,
-        no_bep10 = n_no_ext,
-        timeout = n_timeout,
-        other = n_other,
+        total = summary.total,
+        connect_fail = summary.connect,
+        no_bep10 = summary.no_bep10,
+        timeout = summary.timeout,
+        other = summary.other,
         "all peers exhausted"
     );
-    Err(last_err.unwrap_or(ResolverError::UnexpectedEof))
+    Err(FetchPeersError {
+        last: last_err.unwrap_or(ResolverError::UnexpectedEof),
+        summary,
+    })
 }
 
 /// Fetch BEP 9 metadata for `info_hash` from a single peer at `peer_addr`.
@@ -391,6 +430,7 @@ async fn fetch_inner(
         bytes: metadata,
         harvested_peers,
         harvested_trackers,
+        prior_peer_failures: PeerFailureSummary::default(),
     })
 }
 
@@ -565,3 +605,31 @@ fn eof_to_resolver(e: std::io::Error) -> ResolverError {
 }
 
 const MSGID_EXTENDED: u8 = 20;
+
+#[cfg(test)]
+mod failure_summary_tests {
+    use super::*;
+
+    #[test]
+    fn peer_failures_are_classified_for_observability() {
+        let mut summary = PeerFailureSummary::default();
+        summary.record(&ResolverError::Connect(std::io::Error::new(
+            std::io::ErrorKind::ConnectionRefused,
+            "refused",
+        )));
+        summary.record(&ResolverError::NoMetadataSize);
+        summary.record(&ResolverError::Timeout(Duration::from_secs(15)));
+        summary.record(&ResolverError::HashMismatch);
+
+        assert_eq!(
+            summary,
+            PeerFailureSummary {
+                total: 4,
+                connect: 1,
+                no_bep10: 1,
+                timeout: 1,
+                other: 1,
+            }
+        );
+    }
+}

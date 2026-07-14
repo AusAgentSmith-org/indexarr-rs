@@ -19,6 +19,21 @@ pub struct SourceCount {
 }
 
 #[derive(Debug, Serialize)]
+pub struct ResolverSourceStats {
+    source: String,
+    attempts: i64,
+    successes: i64,
+    failures: i64,
+    success_rate: f64,
+    candidate_peers: i64,
+    connect_fail: i64,
+    no_bep10: i64,
+    timeout_fail: i64,
+    other_fail: i64,
+    average_duration_ms: f64,
+}
+
+#[derive(Debug, Serialize)]
 pub struct ContentTypeCount {
     content_type: String,
     count: i64,
@@ -37,6 +52,7 @@ pub struct StatsResponse {
     announced_count: i64,
     pending_announce_count: i64,
     by_source: Vec<SourceCount>,
+    resolver_last_hour_by_source: Vec<ResolverSourceStats>,
     by_content_type: Vec<ContentTypeCount>,
 }
 
@@ -95,6 +111,24 @@ async fn get_stats(
         })
         .collect();
 
+    let resolver_rows = sqlx::query(
+        "SELECT source, COUNT(*) AS attempts, \
+                COUNT(*) FILTER (WHERE success) AS successes, \
+                COALESCE(SUM(candidate_peers), 0) AS candidate_peers, \
+                COALESCE(SUM(connect_fail), 0) AS connect_fail, \
+                COALESCE(SUM(no_bep10), 0) AS no_bep10, \
+                COALESCE(SUM(timeout_fail), 0) AS timeout_fail, \
+                COALESCE(SUM(other_fail), 0) AS other_fail, \
+                COALESCE(AVG(duration_ms), 0)::DOUBLE PRECISION AS average_duration_ms \
+         FROM resolver_attempt_events \
+         WHERE created_at >= NOW() - INTERVAL '1 hour' \
+         GROUP BY source ORDER BY attempts DESC",
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(db_err)?;
+    let resolver_last_hour_by_source = resolver_rows.iter().map(resolver_source_stats).collect();
+
     let ct_rows = sqlx::query("SELECT content_type, COUNT(*) as cnt FROM torrent_content WHERE content_type IS NOT NULL GROUP BY content_type ORDER BY cnt DESC")
         .fetch_all(pool).await.map_err(db_err)?;
     let by_content_type: Vec<ContentTypeCount> = ct_rows
@@ -120,6 +154,7 @@ async fn get_stats(
         announced_count,
         pending_announce_count,
         by_source,
+        resolver_last_hour_by_source,
         by_content_type,
     }))
 }
@@ -242,6 +277,24 @@ async fn get_dht_status(
             .fetch_one(pool)
             .await
             .map_err(db_err)?;
+    let resolver_rows = sqlx::query(
+        "SELECT source, COUNT(*) AS attempts, \
+                COUNT(*) FILTER (WHERE success) AS successes, \
+                COALESCE(SUM(candidate_peers), 0) AS candidate_peers, \
+                COALESCE(SUM(connect_fail), 0) AS connect_fail, \
+                COALESCE(SUM(no_bep10), 0) AS no_bep10, \
+                COALESCE(SUM(timeout_fail), 0) AS timeout_fail, \
+                COALESCE(SUM(other_fail), 0) AS other_fail, \
+                COALESCE(AVG(duration_ms), 0)::DOUBLE PRECISION AS average_duration_ms \
+         FROM resolver_attempt_events \
+         WHERE created_at >= NOW() - INTERVAL '1 hour' \
+         GROUP BY source ORDER BY attempts DESC",
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(db_err)?;
+    let resolver_last_hour_by_source: Vec<ResolverSourceStats> =
+        resolver_rows.iter().map(resolver_source_stats).collect();
 
     let dht_running = state.settings.workers.iter().any(|w| w == "dht_crawler");
 
@@ -255,10 +308,33 @@ async fn get_dht_status(
         "resolved": resolved,
         "unresolved": total - resolved,
         "resolve_rate": if total > 0 { resolved as f64 / total as f64 } else { 0.0 },
+        "resolver_last_hour_by_source": resolver_last_hour_by_source,
         "sync_enabled": state.settings.sync_enabled,
         "sync_sequence": 0,
         "sync_peers": state.settings.sync_peers.len(),
     })))
+}
+
+fn resolver_source_stats(row: &sqlx::postgres::PgRow) -> ResolverSourceStats {
+    let attempts: i64 = row.get("attempts");
+    let successes: i64 = row.get("successes");
+    ResolverSourceStats {
+        source: row.get("source"),
+        attempts,
+        successes,
+        failures: attempts - successes,
+        success_rate: if attempts > 0 {
+            successes as f64 / attempts as f64
+        } else {
+            0.0
+        },
+        candidate_peers: row.get("candidate_peers"),
+        connect_fail: row.get("connect_fail"),
+        no_bep10: row.get("no_bep10"),
+        timeout_fail: row.get("timeout_fail"),
+        other_fail: row.get("other_fail"),
+        average_duration_ms: row.get("average_duration_ms"),
+    }
 }
 
 // --- Recent resolved ---
@@ -340,7 +416,7 @@ async fn get_scraper_status(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, String)> {
     let rows = sqlx::query(
-        "SELECT source, COUNT(*) as cnt FROM torrents WHERE source LIKE 'api:%' OR source LIKE 'web:%' OR source = 'uploaded' \
+        "SELECT source, COUNT(*) as cnt FROM torrents WHERE source LIKE 'api:%' OR source LIKE 'web:%' OR source = 'upload' \
          GROUP BY source ORDER BY cnt DESC"
     )
     .fetch_all(&state.pool)

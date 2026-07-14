@@ -97,6 +97,26 @@ CREATE INDEX IF NOT EXISTS idx_torrents_sync_export ON torrents (resolved_at, sy
 CREATE INDEX IF NOT EXISTS idx_torrents_private ON torrents (private) WHERE private IS TRUE;
 CREATE INDEX IF NOT EXISTS idx_torrents_no_peers ON torrents (no_peers) WHERE no_peers IS TRUE;
 
+-- Resolver attempt telemetry. Retained for seven days by the resolver worker.
+CREATE TABLE IF NOT EXISTS resolver_attempt_events (
+    id              BIGSERIAL PRIMARY KEY,
+    info_hash       VARCHAR(40) NOT NULL REFERENCES torrents(info_hash) ON DELETE CASCADE,
+    source          VARCHAR(20) NOT NULL,
+    attempt         INTEGER NOT NULL,
+    success         BOOLEAN NOT NULL,
+    candidate_peers INTEGER NOT NULL DEFAULT 0,
+    connect_fail    INTEGER NOT NULL DEFAULT 0,
+    no_bep10        INTEGER NOT NULL DEFAULT 0,
+    timeout_fail    INTEGER NOT NULL DEFAULT 0,
+    other_fail      INTEGER NOT NULL DEFAULT 0,
+    duration_ms     BIGINT NOT NULL DEFAULT 0,
+    last_error      TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_resolver_events_created ON resolver_attempt_events (created_at);
+CREATE INDEX IF NOT EXISTS idx_resolver_events_source_created ON resolver_attempt_events (source, created_at);
+
 -- Torrent files
 CREATE TABLE IF NOT EXISTS torrent_files (
     id          SERIAL PRIMARY KEY,
