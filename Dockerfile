@@ -22,9 +22,7 @@ ARG TARGETARCH
 
 WORKDIR /build
 
-RUN --mount=type=secret,id=git_auth_token \
-    printf '[registries.forgejo]\nindex = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"\ncredential-provider = "cargo:token"\n\n[registry]\ndefault = "forgejo"\n' > $CARGO_HOME/config.toml && \
-    printf '[registries.forgejo]\ntoken = "Bearer %s"\n' "$(cat /run/secrets/git_auth_token)" > $CARGO_HOME/credentials.toml
+RUN printf '[registries.forgejo]\nindex = "sparse+https://repo.indexarr.net/api/packages/indexarr/cargo/"\ncredential-provider = "cargo:token"\n\n[registry]\ndefault = "forgejo"\n' > $CARGO_HOME/config.toml
 
 # Install the aarch64 cross-compilation toolchain when targeting arm64
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
@@ -36,7 +34,10 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
 # Cache dependencies by building a dummy project first
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ crates/
-RUN mkdir -p src && echo 'fn main() {}' > src/main.rs && \
+RUN --mount=type=secret,id=git_auth_token \
+    printf '[registries.forgejo]\ntoken = "Bearer %s"\n' "$(cat /run/secrets/git_auth_token)" > $CARGO_HOME/credentials.toml && \
+    trap 'rm -f "$CARGO_HOME/credentials.toml"' EXIT && \
+    mkdir -p src && echo 'fn main() {}' > src/main.rs && \
     if [ "$TARGETARCH" = "arm64" ]; then \
       CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
         cargo build --release --target aarch64-unknown-linux-gnu --features vendored-ssl 2>/dev/null || true; \
@@ -46,7 +47,10 @@ RUN mkdir -p src && echo 'fn main() {}' > src/main.rs && \
 
 # Build the real binary
 COPY src/ src/
-RUN touch src/main.rs && \
+RUN --mount=type=secret,id=git_auth_token \
+    printf '[registries.forgejo]\ntoken = "Bearer %s"\n' "$(cat /run/secrets/git_auth_token)" > $CARGO_HOME/credentials.toml && \
+    trap 'rm -f "$CARGO_HOME/credentials.toml"' EXIT && \
+    touch src/main.rs && \
     if [ "$TARGETARCH" = "arm64" ]; then \
       CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
         cargo build --release --target aarch64-unknown-linux-gnu --features vendored-ssl && \
