@@ -1,0 +1,31 @@
+#!/bin/sh
+set -eu
+
+tag=${CI_COMMIT_TAG:?CI_COMMIT_TAG is required}
+out=${CI_PACKAGE_DIR:-.ci-output/packages}
+rm -rf "$out"
+mkdir -p \
+    "$out/linux-amd64/indexarr-$tag/ui" \
+    "$out/linux-arm64/indexarr-$tag/ui"
+
+cp target/release/indexarr "$out/linux-amd64/indexarr-$tag/indexarr"
+cp target/aarch64-unknown-linux-gnu/release/indexarr "$out/linux-arm64/indexarr-$tag/indexarr"
+cp -a ui/dist "$out/linux-amd64/indexarr-$tag/ui/dist"
+cp -a ui/dist "$out/linux-arm64/indexarr-$tag/ui/dist"
+cp LICENSE "$out/linux-amd64/indexarr-$tag/"
+cp LICENSE "$out/linux-arm64/indexarr-$tag/"
+
+tar -czf "$out/indexarr-$tag-linux-x86_64.tar.gz" \
+    -C "$out/linux-amd64" "indexarr-$tag"
+tar -czf "$out/indexarr-$tag-linux-aarch64.tar.gz" \
+    -C "$out/linux-arm64" "indexarr-$tag"
+
+sed "s|^VERSION=.*|VERSION=\"$tag\"|" installer/linux-install.sh \
+    > "$out/indexarr-$tag-linux-install.sh"
+chmod +x "$out/indexarr-$tag-linux-install.sh"
+cp target/x86_64-pc-windows-msvc/release/indexarr.exe \
+    "$out/indexarr-$tag-windows-x86_64.exe"
+cp "installer/indexarr-$tag-windows-x86_64-setup.exe" "$out/"
+
+(cd "$out" && sha256sum indexarr-* > "SHA256SUMS-$tag.txt")
+ls -lh "$out"/indexarr-* "$out/SHA256SUMS-$tag.txt"

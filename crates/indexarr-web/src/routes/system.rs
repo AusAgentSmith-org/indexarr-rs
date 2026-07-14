@@ -28,7 +28,7 @@ async fn system_status(
         .map_err(db_err)?;
 
     Ok(Json(serde_json::json!({
-        "version": "0.1.0",
+        "version": env!("CARGO_PKG_VERSION"),
         "runtime": "rust",
         "is_docker": std::path::Path::new("/.dockerenv").exists(),
         "db_backend": state.settings.db_backend.to_string(),

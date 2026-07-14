@@ -1,0 +1,13 @@
+.git
+.github
+.claude
+.ci-output
+target
+data
+ui/node_modules
+ui/dist
+website/node_modules
+AGENTS.md
+magnetinset
+*.db
+.env

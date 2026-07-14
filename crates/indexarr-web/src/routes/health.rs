@@ -9,7 +9,7 @@ pub async fn health(State(state): State<Arc<AppState>>) -> Json<serde_json::Valu
     let ready = state.is_ready();
     Json(serde_json::json!({
         "status": if ready { "ok" } else { "starting" },
-        "version": "0.1.0",
+        "version": env!("CARGO_PKG_VERSION"),
         "ready": ready,
     }))
 }

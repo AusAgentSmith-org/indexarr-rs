@@ -6,16 +6,10 @@ when:
   - event: pull_request
 
 variables:
-  # Inject the Forgejo cargo registry credentials at the start of every Rust
-  # step. The repo-local `.cargo/config.toml` defines the registry; this just
-  # writes the bearer token into $CARGO_HOME/credentials.toml.
   - &cargo_setup |
-      printf '[registries.forgejo]\ntoken = "Bearer %s"\n' "$GIT_AUTH_TOKEN" > $CARGO_HOME/credentials.toml
+      printf '[registries.forgejo]\ntoken = "Bearer %s"\n' "$GIT_AUTH_TOKEN" > "$CARGO_HOME/credentials.toml"
 
 steps:
-
-  # ── Code quality ─────────────────────────────────────────────────────────────
-
   - name: fmt
     image: rust:1.97-bookworm
     commands:
@@ -29,7 +23,8 @@ steps:
         from_secret: git_auth_token
     commands:
       - *cargo_setup
-      - cargo check --workspace
+      - cargo check --workspace --all-targets --locked
+    depends_on: [fmt]
 
   - name: test
     image: rust:1.97-bookworm
@@ -38,7 +33,9 @@ steps:
         from_secret: git_auth_token
     commands:
       - *cargo_setup
-      - cargo test --workspace
+      - cargo test --workspace --locked
+      - cargo test --workspace --doc --locked
+    depends_on: [check]
 
   - name: clippy
     image: rust:1.97-bookworm
@@ -48,19 +45,17 @@ steps:
     commands:
       - *cargo_setup
       - rustup component add clippy
-      - cargo clippy --workspace -- -D warnings
-
-  # ── UI build ──────────────────────────────────────────────────────────────────
+      - cargo clippy --workspace --all-targets --locked -- -D warnings
+    depends_on: [test]
 
   - name: build-ui
     image: node:22-bookworm-slim
     commands:
-      - cd ui && npm ci && npm run build
+      - cd ui && npm ci --no-audit --no-fund && npm audit --audit-level=high && npm run build:check
     when:
       - event: tag
       - event: manual
-
-  # ── Linux binary + tarball ───────────────────────────────────────────────────
+    depends_on: [clippy]
 
   - name: build-linux
     image: rust:1.97-bookworm
@@ -69,30 +64,13 @@ steps:
         from_secret: git_auth_token
     commands:
       - *cargo_setup
-      - |
-        if [ -n "$CI_COMMIT_TAG" ]; then
-          export CARGO_PROFILE_RELEASE_LTO=fat
-          export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
-          export CARGO_PROFILE_RELEASE_STRIP=symbols
-        fi
-      - cargo build --release
-      - ls -lh target/release/indexarr
-      - |
-        if [ -n "$CI_COMMIT_TAG" ]; then
-          TAG="$CI_COMMIT_TAG"
-        else
-          TAG=$(echo $CI_COMMIT_SHA | head -c 9)
-        fi
-        mkdir -p staging/ui
-        cp target/release/indexarr staging/indexarr
-        cp -r ui/dist staging/ui/dist
-        tar -czf "indexarr-$TAG-linux-x86_64.tar.gz" -C staging .
-        ls -lh "indexarr-$TAG-linux-x86_64.tar.gz"
+      - export CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 CARGO_PROFILE_RELEASE_STRIP=symbols
+      - cargo build --release --locked
+      - test -x target/release/indexarr
     when:
       - event: tag
       - event: manual
-
-  # ── Linux ARM64 binary + tarball ────────────────────────────────────────────
+    depends_on: [build-ui]
 
   - name: build-linux-arm64
     image: rust:1.97-bookworm
@@ -101,35 +79,15 @@ steps:
         from_secret: git_auth_token
     commands:
       - *cargo_setup
-      - apt-get update && apt-get install -y --no-install-recommends
-          gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-          libc6-dev-arm64-cross cmake
+      - apt-get update && apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross cmake
       - rustup target add aarch64-unknown-linux-gnu
-      - |
-        if [ -n "$CI_COMMIT_TAG" ]; then
-          export CARGO_PROFILE_RELEASE_LTO=fat
-          export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
-          export CARGO_PROFILE_RELEASE_STRIP=symbols
-        fi
-      - CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
-          cargo build --release --target aarch64-unknown-linux-gnu --features vendored-ssl
-      - ls -lh target/aarch64-unknown-linux-gnu/release/indexarr
-      - |
-        if [ -n "$CI_COMMIT_TAG" ]; then
-          TAG="$CI_COMMIT_TAG"
-        else
-          TAG=$(echo $CI_COMMIT_SHA | head -c 9)
-        fi
-        mkdir -p staging-arm64/ui
-        cp target/aarch64-unknown-linux-gnu/release/indexarr staging-arm64/indexarr
-        cp -r ui/dist staging-arm64/ui/dist
-        tar -czf "indexarr-$TAG-linux-aarch64.tar.gz" -C staging-arm64 .
-        ls -lh "indexarr-$TAG-linux-aarch64.tar.gz"
+      - export CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 CARGO_PROFILE_RELEASE_STRIP=symbols
+      - CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc cargo build --release --target aarch64-unknown-linux-gnu --features vendored-ssl --locked
+      - test -x target/aarch64-unknown-linux-gnu/release/indexarr
     when:
       - event: tag
       - event: manual
-
-  # ── Windows binary + NSIS installer ─────────────────────────────────────────
+    depends_on: [build-linux]
 
   - name: build-windows
     image: rust:1.97-bookworm
@@ -139,62 +97,105 @@ steps:
     commands:
       - *cargo_setup
       - rm -rf ~/.cache/cargo-xwin
-      - apt-get update && apt-get install -y --no-install-recommends clang llvm lld cmake nasm nsis
-      - cargo install cargo-xwin@0.18.6 --index https://github.com/rust-lang/crates.io-index
+      - apt-get update && apt-get install -y --no-install-recommends clang llvm lld cmake nasm nsis curl unzip
+      - cargo install cargo-xwin@0.18.6 --index https://github.com/rust-lang/crates.io-index --locked
       - rustup target add x86_64-pc-windows-msvc
-      - |
-        if [ -n "$CI_COMMIT_TAG" ]; then
-          export CARGO_PROFILE_RELEASE_LTO=fat
-          export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
-          export CARGO_PROFILE_RELEASE_STRIP=symbols
-        fi
-      - cargo xwin build --release --target x86_64-pc-windows-msvc
-      - ls -lh target/x86_64-pc-windows-msvc/release/indexarr.exe
-      - |
-        if [ -n "$CI_COMMIT_TAG" ]; then
-          TAG="$CI_COMMIT_TAG"
-          PG_VERSION="17.4"
-          echo "Downloading PostgreSQL $PG_VERSION binaries..."
-          curl -fL "https://get.enterprisedb.com/postgresql/postgresql-$PG_VERSION-1-windows-x64-binaries.zip" \
-            -o installer/pgsql.zip
-          cp target/x86_64-pc-windows-msvc/release/indexarr.exe installer/indexarr.exe
-          # Copy built UI into installer directory for NSIS to pick up
-          cp -r ui/dist installer/dist
-          makensis -DVERSION="$TAG" -DPGVERSION="$PG_VERSION" installer/windows.nsi
-          ls -lh "installer/indexarr-$TAG-windows-x86_64-setup.exe"
-          rm -f installer/pgsql.zip installer/indexarr.exe
-          rm -rf installer/dist
-        fi
+      - export CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 CARGO_PROFILE_RELEASE_STRIP=symbols
+      - cargo xwin build --release --target x86_64-pc-windows-msvc --locked
+      - test -f target/x86_64-pc-windows-msvc/release/indexarr.exe
+      - curl -fL https://get.enterprisedb.com/postgresql/postgresql-17.4-1-windows-x64-binaries.zip -o installer/pgsql.zip
+      - cp target/x86_64-pc-windows-msvc/release/indexarr.exe installer/indexarr.exe
+      - cp -a ui/dist installer/dist
+      - makensis -DVERSION="$CI_COMMIT_TAG" -DPGVERSION=17.4 installer/windows.nsi
+      - test -f "installer/indexarr-$CI_COMMIT_TAG-windows-x86_64-setup.exe"
+      - rm -f installer/pgsql.zip installer/indexarr.exe
+      - rm -rf installer/dist
     when:
       - event: tag
-      - event: manual
+    depends_on: [build-linux-arm64]
 
-  # ── Docker → GHCR ────────────────────────────────────────────────────────────
+  - name: package-release
+    image: alpine:3.23
+    commands:
+      - apk add --no-cache coreutils
+      - ci/tasks/package-release
+    when:
+      - event: tag
+    depends_on: [build-windows]
 
-  - name: build-and-push
+  # Main builds an immutable amd64 candidate. Mutable development tags move
+  # only after that exact image passes the runtime smoke test.
+  - name: build-candidate
     image: docker:27
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       GIT_AUTH_TOKEN:
         from_secret: git_auth_token
-      GHCR_TOKEN:
-        from_secret: gh_release_token
     commands:
-      - echo "$GHCR_TOKEN" | docker login ghcr.io -u AusAgentSmith --password-stdin
-      - docker buildx create --name multiarch --use
-      - docker buildx build
-          --platform linux/amd64,linux/arm64/v8
-          --secret id=git_auth_token,env=GIT_AUTH_TOKEN
-          -t ghcr.io/ausagentsmith-org/indexarr-rs:latest
-          -t ghcr.io/ausagentsmith-org/indexarr-rs:$CI_COMMIT_SHA
-          --push .
-      - docker buildx rm multiarch
+      - printf '%s' "$GIT_AUTH_TOKEN" | docker login repo.indexarr.net -u x-access-token --password-stdin
+      - docker buildx create --name "indexarr-$CI_PIPELINE_NUMBER" --driver docker-container --use
+      - docker buildx build --platform linux/amd64 --provenance=false --secret id=git_auth_token,env=GIT_AUTH_TOKEN --build-arg INDEXARR_BUILD_REF="$CI_COMMIT_SHA" --build-arg INDEXARR_BUILD_REVISION="$CI_COMMIT_SHA" -t "repo.indexarr.net/indexarr/indexarr-rs:$CI_COMMIT_SHA" --push .
+      - docker buildx rm "indexarr-$CI_PIPELINE_NUMBER"
     when:
       - event: push
         branch: main
+      - event: manual
+        branch: main
+    depends_on: [clippy]
 
-  # ── Komodo deploy to Node B ──────────────────────────────────────────────────
+  - name: smoke-candidate
+    image: docker:27
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      GIT_AUTH_TOKEN:
+        from_secret: git_auth_token
+    commands:
+      - printf '%s' "$GIT_AUTH_TOKEN" | docker login repo.indexarr.net -u x-access-token --password-stdin
+      - ci/tasks/smoke-runtime "repo.indexarr.net/indexarr/indexarr-rs:$CI_COMMIT_SHA" "$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -1)"
+    when:
+      - event: push
+        branch: main
+      - event: manual
+        branch: main
+    depends_on: [build-candidate]
+
+  - name: promote-dev
+    image: quay.io/skopeo/stable:v1.20.0
+    environment:
+      FORGEJO_TOKEN:
+        from_secret: git_auth_token
+      GH_TOKEN:
+        from_secret: gh_release_token
+    commands:
+      - SRC="docker://repo.indexarr.net/indexarr/indexarr-rs:$CI_COMMIT_SHA"
+      - SRC_CREDS="--src-creds=$FORGEJO_TOKEN:$FORGEJO_TOKEN"
+      - DST_CREDS="--dest-creds=AusAgentSmith:$GH_TOKEN"
+      - skopeo copy $SRC_CREDS --dest-creds "$FORGEJO_TOKEN:$FORGEJO_TOKEN" "$SRC" docker://repo.indexarr.net/indexarr/indexarr-rs:dev
+      - skopeo copy $SRC_CREDS $DST_CREDS "$SRC" "docker://ghcr.io/ausagentsmith-org/indexarr-rs:$CI_COMMIT_SHA"
+      - skopeo copy $SRC_CREDS $DST_CREDS "$SRC" docker://ghcr.io/ausagentsmith-org/indexarr-rs:dev
+    when:
+      - event: push
+        branch: main
+      - event: manual
+        branch: main
+    depends_on: [smoke-candidate]
+
+  - name: mirror-github-main
+    image: alpine:3.23
+    environment:
+      GH_TOKEN:
+        from_secret: gh_release_token
+      GIT_AUTH_TOKEN:
+        from_secret: git_auth_token
+    commands:
+      - apk add --no-cache git
+      - ci/tasks/mirror-github branch
+    when:
+      - event: push
+        branch: main
+    depends_on: [promote-dev]
 
   - name: komodo-deploy
     image: alpine:3.23
@@ -210,181 +211,153 @@ steps:
       - apk add --no-cache bash git curl python3 >/dev/null
       - 'curl -sSf -H "Authorization: token $GIT_AUTH_TOKEN" -o /tmp/komodo-deploy.sh https://repo.indexarr.net/indexarr/ops/raw/branch/main/scripts/komodo-deploy.sh'
       - chmod +x /tmp/komodo-deploy.sh
-      - STACK_NAME=prod-indexarr STACK_DIR=prod/indexarr IMAGE_NAME=ghcr.io/ausagentsmith-org/indexarr-rs IMAGE_TAG=$CI_COMMIT_SHA bash /tmp/komodo-deploy.sh
+      - STACK_NAME=prod-indexarr STACK_DIR=prod/indexarr IMAGE_NAME=repo.indexarr.net/indexarr/indexarr-rs IMAGE_TAG=$CI_COMMIT_SHA bash /tmp/komodo-deploy.sh
     when:
-      - event: push
-        branch: main
       - event: manual
         branch: main
+    depends_on: [promote-dev]
 
-  - name: build-and-push-release
+  # Tagged releases build per-architecture immutable candidates.
+  - name: build-release-amd64
     image: docker:27
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       GIT_AUTH_TOKEN:
         from_secret: git_auth_token
-      GHCR_TOKEN:
-        from_secret: gh_release_token
     commands:
-      - echo "$GHCR_TOKEN" | docker login ghcr.io -u AusAgentSmith --password-stdin
-      - docker buildx create --name multiarch --use
-      - docker buildx build
-          --platform linux/amd64,linux/arm64/v8
-          --secret id=git_auth_token,env=GIT_AUTH_TOKEN
-          -t ghcr.io/ausagentsmith-org/indexarr-rs:$CI_COMMIT_TAG
-          -t ghcr.io/ausagentsmith-org/indexarr-rs:latest
-          --push .
-      - docker buildx rm multiarch
+      - printf '%s' "$GIT_AUTH_TOKEN" | docker login repo.indexarr.net -u x-access-token --password-stdin
+      - docker buildx create --name "indexarr-release-amd64-$CI_PIPELINE_NUMBER" --driver docker-container --use
+      - docker buildx build --platform linux/amd64 --provenance=false --secret id=git_auth_token,env=GIT_AUTH_TOKEN --build-arg INDEXARR_BUILD_REF="$CI_COMMIT_TAG" --build-arg INDEXARR_BUILD_REVISION="$CI_COMMIT_SHA" -t "repo.indexarr.net/indexarr/indexarr-rs:$CI_COMMIT_TAG-amd64" --push .
+      - docker buildx rm "indexarr-release-amd64-$CI_PIPELINE_NUMBER"
     when:
       - event: tag
+    depends_on: [package-release]
 
-  # ── GitHub release ───────────────────────────────────────────────────────────
+  - name: build-release-arm64
+    image: docker:27
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      GIT_AUTH_TOKEN:
+        from_secret: git_auth_token
+    commands:
+      - printf '%s' "$GIT_AUTH_TOKEN" | docker login repo.indexarr.net -u x-access-token --password-stdin
+      - docker buildx create --name "indexarr-release-arm64-$CI_PIPELINE_NUMBER" --driver docker-container --use
+      - docker buildx build --platform linux/arm64 --provenance=false --secret id=git_auth_token,env=GIT_AUTH_TOKEN --build-arg INDEXARR_BUILD_REF="$CI_COMMIT_TAG" --build-arg INDEXARR_BUILD_REVISION="$CI_COMMIT_SHA" -t "repo.indexarr.net/indexarr/indexarr-rs:$CI_COMMIT_TAG-arm64" --push .
+      - docker buildx rm "indexarr-release-arm64-$CI_PIPELINE_NUMBER"
+    when:
+      - event: tag
+    depends_on: [package-release]
+
+  - name: smoke-release-amd64
+    image: docker:27
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      GIT_AUTH_TOKEN:
+        from_secret: git_auth_token
+    commands:
+      - printf '%s' "$GIT_AUTH_TOKEN" | docker login repo.indexarr.net -u x-access-token --password-stdin
+      - ci/tasks/smoke-runtime "repo.indexarr.net/indexarr/indexarr-rs:$CI_COMMIT_TAG-amd64" "${CI_COMMIT_TAG#v}"
+    when:
+      - event: tag
+    depends_on: [build-release-amd64, build-release-arm64]
+
+  - name: manifest-release
+    image: docker:27
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      GIT_AUTH_TOKEN:
+        from_secret: git_auth_token
+    commands:
+      - printf '%s' "$GIT_AUTH_TOKEN" | docker login repo.indexarr.net -u x-access-token --password-stdin
+      - docker buildx imagetools create -t "repo.indexarr.net/indexarr/indexarr-rs:$CI_COMMIT_TAG" "repo.indexarr.net/indexarr/indexarr-rs:$CI_COMMIT_TAG-amd64" "repo.indexarr.net/indexarr/indexarr-rs:$CI_COMMIT_TAG-arm64"
+    when:
+      - event: tag
+    depends_on: [smoke-release-amd64]
+
+  - name: promote-release
+    image: quay.io/skopeo/stable:v1.20.0
+    environment:
+      FORGEJO_TOKEN:
+        from_secret: git_auth_token
+      GH_TOKEN:
+        from_secret: gh_release_token
+    commands:
+      - SRC="docker://repo.indexarr.net/indexarr/indexarr-rs:$CI_COMMIT_TAG"
+      - SRC_CREDS="--src-creds=$FORGEJO_TOKEN:$FORGEJO_TOKEN"
+      - DST_CREDS="--dest-creds=AusAgentSmith:$GH_TOKEN"
+      - skopeo copy --multi-arch all $SRC_CREDS --dest-creds "$FORGEJO_TOKEN:$FORGEJO_TOKEN" "$SRC" docker://repo.indexarr.net/indexarr/indexarr-rs:latest
+      - skopeo copy --multi-arch all $SRC_CREDS $DST_CREDS "$SRC" "docker://ghcr.io/ausagentsmith-org/indexarr-rs:$CI_COMMIT_TAG"
+      - skopeo copy --multi-arch all $SRC_CREDS $DST_CREDS "$SRC" docker://ghcr.io/ausagentsmith-org/indexarr-rs:latest
+    when:
+      - event: tag
+    depends_on: [manifest-release]
+
+  - name: verify-release-images
+    image: quay.io/skopeo/stable:v1.20.0
+    environment:
+      FORGEJO_TOKEN:
+        from_secret: git_auth_token
+      GH_TOKEN:
+        from_secret: gh_release_token
+    commands:
+      - for arch in amd64 arm64; do skopeo inspect --creds "$FORGEJO_TOKEN:$FORGEJO_TOKEN" --override-arch "$arch" "docker://repo.indexarr.net/indexarr/indexarr-rs:$CI_COMMIT_TAG" >/dev/null; skopeo inspect --creds "$FORGEJO_TOKEN:$FORGEJO_TOKEN" --override-arch "$arch" docker://repo.indexarr.net/indexarr/indexarr-rs:latest >/dev/null; skopeo inspect --creds "AusAgentSmith:$GH_TOKEN" --override-arch "$arch" "docker://ghcr.io/ausagentsmith-org/indexarr-rs:$CI_COMMIT_TAG" >/dev/null; skopeo inspect --creds "AusAgentSmith:$GH_TOKEN" --override-arch "$arch" docker://ghcr.io/ausagentsmith-org/indexarr-rs:latest >/dev/null; done
+    when:
+      - event: tag
+    depends_on: [promote-release]
+
+  - name: mirror-github-tag
+    image: alpine:3.23
+    environment:
+      GH_TOKEN:
+        from_secret: gh_release_token
+      GIT_AUTH_TOKEN:
+        from_secret: git_auth_token
+    commands:
+      - apk add --no-cache git
+      - ci/tasks/mirror-github tag
+    when:
+      - event: tag
+    depends_on: [verify-release-images]
 
   - name: github-release
     image: alpine:3.23
-    when:
-      - event: tag
     environment:
       GH_TOKEN:
         from_secret: gh_release_token
     commands:
       - apk add --no-cache curl jq
       - |
-        set -e
+        set -eu
         TAG="$CI_COMMIT_TAG"
         REPO="AusAgentSmith-org/indexarr-rs"
-
-        # Bake version into the install script
-        sed "s|^VERSION=.*|VERSION=\"$TAG\"|" installer/linux-install.sh \
-          > "indexarr-$TAG-linux-install.sh"
-        chmod +x "indexarr-$TAG-linux-install.sh"
-
-        cp "target/x86_64-pc-windows-msvc/release/indexarr.exe" \
-           "indexarr-$TAG-windows-x86_64.exe"
-        cp "installer/indexarr-$TAG-windows-x86_64-setup.exe" .
-
-        sha256sum \
-          "indexarr-$TAG-linux-x86_64.tar.gz" \
-          "indexarr-$TAG-linux-aarch64.tar.gz" \
-          "indexarr-$TAG-linux-install.sh" \
-          "indexarr-$TAG-windows-x86_64.exe" \
-          "indexarr-$TAG-windows-x86_64-setup.exe" \
-          > "SHA256SUMS-$TAG.txt"
-
-        # Delete existing release if present
-        EXISTING_ID=$(curl -s -H "Authorization: token $GH_TOKEN" \
-          "https://api.github.com/repos/$REPO/releases/tags/$TAG" | jq -r '.id // empty')
-        if [ -n "$EXISTING_ID" ]; then
-          curl -s -X DELETE -H "Authorization: token $GH_TOKEN" \
-            "https://api.github.com/repos/$REPO/releases/$EXISTING_ID"
-        fi
-
-        BODY="## Quick install (Linux)\n\`\`\`bash\ncurl -fsSL https://github.com/$REPO/releases/download/$TAG/indexarr-$TAG-linux-install.sh | sudo bash\n\`\`\`\n\n"
-        BODY="$BODY## Docker\n\`\`\`\ndocker pull ghcr.io/$REPO:$TAG\n\`\`\`\n\n"
-        BODY="$BODY SHA256 checksums in \`SHA256SUMS-$TAG.txt\`"
-
-        RELEASE_ID=$(curl -sf -X POST \
-          -H "Authorization: token $GH_TOKEN" \
-          -H "Content-Type: application/json" \
-          -d "{\"tag_name\":\"$TAG\",\"target_commitish\":\"main\",\"name\":\"indexarr $TAG\",\"body\":\"$BODY\",\"draft\":false,\"prerelease\":true}" \
-          "https://api.github.com/repos/$REPO/releases" | jq -r '.id')
-
-        [ -n "$RELEASE_ID" ] && [ "$RELEASE_ID" != "null" ] || \
-          { echo "ERROR: Failed to create release"; exit 1; }
-
-        for file in \
-          "indexarr-$TAG-linux-x86_64.tar.gz" \
-          "indexarr-$TAG-linux-aarch64.tar.gz" \
-          "indexarr-$TAG-linux-install.sh" \
-          "indexarr-$TAG-windows-x86_64.exe" \
-          "indexarr-$TAG-windows-x86_64-setup.exe" \
-          "SHA256SUMS-$TAG.txt"; do
-          [ -f "$file" ] || continue
-          echo "Uploading $file..."
-          curl -sf -X POST \
-            -H "Authorization: token $GH_TOKEN" \
-            -H "Content-Type: application/octet-stream" \
-            --data-binary "@$file" \
-            "https://uploads.github.com/repos/$REPO/releases/$RELEASE_ID/assets?name=$file" > /dev/null
+        NOTES="RELEASE_NOTES_$TAG.md"
+        OUT=".ci-output/packages"
+        test -f "$NOTES"
+        jq -n --arg tag "$TAG" --arg name "Indexarr $TAG" --rawfile body "$NOTES" '{tag_name:$tag,target_commitish:"main",name:$name,body:$body,draft:false,prerelease:false}' > /tmp/release.json
+        RELEASE_ID=$(curl -fsS -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/json" --data-binary @/tmp/release.json "https://api.github.com/repos/$REPO/releases" | jq -r .id)
+        test -n "$RELEASE_ID" && test "$RELEASE_ID" != null
+        for file in "$OUT"/indexarr-* "$OUT"/SHA256SUMS-*; do
+          name=$(basename "$file")
+          curl -fsS -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/octet-stream" --data-binary "@$file" "https://uploads.github.com/repos/$REPO/releases/$RELEASE_ID/assets?name=$name" >/dev/null
         done
-        echo "Release $TAG complete."
-
-  # ── Discord changelog (releases only) ────────────────────────────────────────
+    when:
+      - event: tag
+    depends_on: [mirror-github-tag]
 
   - name: discord-release
     image: alpine:3.23
-    when:
-      - event: tag
     environment:
       DISCORD_WEBHOOK_URL:
         from_secret: discord_changelog_webhook_url
-      GH_TOKEN:
-        from_secret: gh_release_token
     commands:
       - apk add --no-cache curl jq >/dev/null
-      - |
-        TAG="$CI_COMMIT_TAG"
-        REPO="AusAgentSmith-org/indexarr-rs"
-
-        # Pull the freshly-published release notes from GitHub.
-        BODY=$(curl -sf -H "Authorization: token $GH_TOKEN" \
-          "https://api.github.com/repos/$REPO/releases/tags/$TAG" | jq -r '.body // ""')
-        # Discord embed description cap is 4096 chars; truncate generously.
-        BODY=$(printf '%s' "$BODY" | head -c 3500)
-
-        PAYLOAD=$(jq -n --arg tag "$TAG" --arg repo "$REPO" --arg body "$BODY" \
-          --arg url "https://github.com/$REPO/releases/tag/$TAG" \
-          '{
-            embeds: [{
-              title: ("indexarr " + $tag),
-              url: $url,
-              description: $body,
-              color: 5025616,
-              footer: {text: $repo},
-              timestamp: (now | todate)
-            }]
-          }')
-        curl -sf -H "Content-Type: application/json" -d "$PAYLOAD" "$DISCORD_WEBHOOK_URL" || true
-
-  # ── Discord notifications ─────────────────────────────────────────────────────
-
-  - name: discord-success
-    image: alpine/curl
-    environment:
-      DISCORD_WEBHOOK_URL:
-        from_secret: discord_webhook_url
-    commands:
-      - |
-        HASH=$(echo $CI_COMMIT_SHA | head -c 7)
-        curl -sf -H "Content-Type: application/json" -d "{
-          \"embeds\": [{
-            \"title\": \"Build Successful\",
-            \"description\": \"**$CI_REPO** — [$HASH]($CI_REPO_URL/commit/$CI_COMMIT_SHA)\",
-            \"color\": 5025616,
-            \"footer\": {\"text\": \"$CI_REPO • $CI_COMMIT_AUTHOR\"},
-            \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
-          }]
-        }" "$DISCORD_WEBHOOK_URL" || true
+      - BODY=$(head -c 3500 "RELEASE_NOTES_$CI_COMMIT_TAG.md")
+      - jq -n --arg tag "$CI_COMMIT_TAG" --arg body "$BODY" --arg url "https://github.com/AusAgentSmith-org/indexarr-rs/releases/tag/$CI_COMMIT_TAG" '{embeds:[{title:("Indexarr "+$tag),url:$url,description:$body,color:5025616,timestamp:(now|todate)}]}' > /tmp/discord.json
+      - 'curl -fsS -H "Content-Type: application/json" --data-binary @/tmp/discord.json "$DISCORD_WEBHOOK_URL" || true'
     when:
-      - status: [success]
-
-  - name: discord-failure
-    image: alpine/curl
-    environment:
-      DISCORD_WEBHOOK_URL:
-        from_secret: discord_webhook_url
-    commands:
-      - |
-        HASH=$(echo $CI_COMMIT_SHA | head -c 7)
-        curl -sf -H "Content-Type: application/json" -d "{
-          \"embeds\": [{
-            \"title\": \"Build Failed\",
-            \"description\": \"**$CI_REPO** — [$HASH]($CI_REPO_URL/commit/$CI_COMMIT_SHA)\",
-            \"color\": 15548997,
-            \"footer\": {\"text\": \"$CI_REPO • $CI_COMMIT_AUTHOR\"},
-            \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
-          }]
-        }" "$DISCORD_WEBHOOK_URL" || true
-    when:
-      - status: [failure]
+      - event: tag
+    depends_on: [github-release]

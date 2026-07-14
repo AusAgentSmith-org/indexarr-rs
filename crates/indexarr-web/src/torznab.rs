@@ -61,7 +61,10 @@ fn error_response(code: i32, description: &str) -> Response {
 
 fn caps_xml() -> String {
     let mut xml = String::from("<caps>\n");
-    xml.push_str("  <server title=\"Indexarr\" version=\"0.1.0\"/>\n");
+    xml.push_str(&format!(
+        "  <server title=\"Indexarr\" version=\"{}\"/>\n",
+        env!("CARGO_PKG_VERSION")
+    ));
     xml.push_str("  <limits max=\"100\" default=\"50\"/>\n");
     xml.push_str("  <searching>\n");
     xml.push_str("    <search available=\"yes\" supportedParams=\"q\"/>\n");

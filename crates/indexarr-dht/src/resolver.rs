@@ -643,6 +643,7 @@ async fn process_resolved(
 
     let classification = indexarr_classifier::classify(&parsed, &file_infos, &meta.name);
     let quality_score = indexarr_classifier::compute_quality_score(&parsed);
+    let mut tx = pool.begin().await?;
 
     // Update torrent record
     sqlx::query(
@@ -661,13 +662,13 @@ async fn process_resolved(
     .bind(meta.peer_count)
     .bind(meta.piece_length)
     .bind(meta.piece_count)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
 
     // Store files (if under threshold)
     if meta.files.len() <= save_files_threshold as usize {
         for file in &meta.files {
-            let ext = file.path.rsplit('.').next().map(|e| e.to_lowercase());
+            let ext = file_extension(&file.path);
             sqlx::query(
                 "INSERT INTO torrent_files (info_hash, path, size, extension) VALUES ($1, $2, $3, $4)"
             )
@@ -675,7 +676,7 @@ async fn process_resolved(
             .bind(&file.path)
             .bind(file.size)
             .bind(&ext)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
         }
     }
@@ -723,20 +724,22 @@ async fn process_resolved(
     .bind(classification.has_subtitles || parsed.has_subtitles)
     .bind(classification.is_anime)
     .bind(&classification.music_format)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
 
     // Store tags
     for tag in &classification.tags {
-        let _ = sqlx::query(
+        sqlx::query(
             "INSERT INTO torrent_tags (info_hash, tag, source) VALUES ($1, $2, 'classifier') \
              ON CONFLICT (info_hash, tag) DO NOTHING",
         )
         .bind(info_hash)
         .bind(tag)
-        .execute(pool)
-        .await;
+        .execute(&mut *tx)
+        .await?;
     }
+
+    tx.commit().await?;
 
     tracing::debug!(
         hash = %info_hash,
@@ -749,9 +752,15 @@ async fn process_resolved(
     Ok(())
 }
 
+fn file_extension(path: &str) -> Option<String> {
+    let file_name = path.rsplit(['/', '\\']).next()?;
+    let (_, extension) = file_name.rsplit_once('.')?;
+    (!extension.is_empty()).then(|| extension.to_lowercase())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{fair_lane_limits, retry_delay_secs};
+    use super::{fair_lane_limits, file_extension, retry_delay_secs};
 
     #[test]
     fn fair_scheduler_reserves_live_and_upload_lanes() {
@@ -771,5 +780,17 @@ mod tests {
         assert_eq!(retry_delay_secs(7), 1_920);
         assert_eq!(retry_delay_secs(13), 86_400);
         assert_eq!(retry_delay_secs(100), 86_400);
+    }
+
+    #[test]
+    fn file_extensions_require_a_real_suffix() {
+        assert_eq!(file_extension("folder/video.MKV").as_deref(), Some("mkv"));
+        assert_eq!(
+            file_extension(r"folder\\archive.tar.gz").as_deref(),
+            Some("gz")
+        );
+        assert_eq!(file_extension("README"), None);
+        assert_eq!(file_extension("folder.with.dots/README"), None);
+        assert_eq!(file_extension("trailing."), None);
     }
 }

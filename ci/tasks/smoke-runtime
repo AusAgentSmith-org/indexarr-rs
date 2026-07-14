@@ -1,0 +1,48 @@
+#!/bin/sh
+set -eu
+
+image=${1:?usage: smoke-runtime IMAGE EXPECTED_VERSION}
+expected=${2:?usage: smoke-runtime IMAGE EXPECTED_VERSION}
+suffix=$(date +%s)-$$
+network=indexarr-smoke-$suffix
+database=indexarr-smoke-db-$suffix
+app=indexarr-smoke-app-$suffix
+cleanup() {
+    docker rm -f "$app" "$database" >/dev/null 2>&1 || true
+    docker network rm "$network" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+docker image inspect "$image" >/dev/null 2>&1 || docker pull "$image" >/dev/null
+version=$(docker run --rm --entrypoint /app/indexarr "$image" --version)
+printf '%s' "$version" | grep -Fq "$expected"
+docker run --rm --entrypoint /bin/sh "$image" -ec \
+    'test -x /app/indexarr; test -s /app/ui/dist/index.html; test -s /etc/ssl/certs/ca-certificates.crt'
+
+docker network create "$network" >/dev/null
+docker run -d --name "$database" --network "$network" \
+    -e POSTGRES_USER=indexarr -e POSTGRES_PASSWORD=indexarr -e POSTGRES_DB=indexarr \
+    postgres:17-alpine >/dev/null
+i=0
+until docker exec "$database" pg_isready -U indexarr >/dev/null 2>&1; do
+    i=$((i + 1))
+    test "$i" -lt 60 || { docker logs "$database"; exit 1; }
+    sleep 1
+done
+
+docker run -d --name "$app" --network "$network" \
+    -e INDEXARR_DB_URL=postgres://indexarr:indexarr@indexarr-smoke-db-$suffix:5432/indexarr \
+    -e INDEXARR_WORKERS=http_server \
+    "$image" --workers http_server >/dev/null
+i=0
+until docker run --rm --network "$network" curlimages/curl:8.16.0 \
+    -fsS "http://$app:8080/health" > /tmp/indexarr-health.json 2>/dev/null; do
+    i=$((i + 1))
+    test "$i" -lt 60 || { docker logs "$app"; exit 1; }
+    sleep 1
+done
+grep -Fq '"status":"ok"' /tmp/indexarr-health.json
+grep -Fq "\"version\":\"$expected\"" /tmp/indexarr-health.json
+rm -f /tmp/indexarr-health.json
+docker stop --time 15 "$app" >/dev/null
+printf 'runtime smoke test passed for %s\n' "$image"

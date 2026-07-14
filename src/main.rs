@@ -7,11 +7,7 @@ use indexarr_identity::ContributorIdentity;
 use indexarr_web::state::AppState;
 
 #[derive(Parser)]
-#[command(
-    name = "indexarr",
-    about = "Decentralized torrent indexing",
-    version = "0.1.0"
-)]
+#[command(name = "indexarr", about = "Decentralized torrent indexing", version)]
 struct Cli {
     /// Run all workers
     #[arg(long)]
@@ -148,8 +144,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     tracing::info!(
+        version = env!("CARGO_PKG_VERSION"),
         workers = workers.join(", "),
-        "Indexarr v0.1.0 — starting workers"
+        "Indexarr starting workers"
     );
 
     // Reflect the actually-resolved worker list back into settings so HTTP

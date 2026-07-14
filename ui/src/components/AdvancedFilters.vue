@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import type { Facets, SearchFilters } from '@/api'
 
-const props = defineProps<{
+defineProps<{
   facets: Facets | null
   filters: SearchFilters
 }>()

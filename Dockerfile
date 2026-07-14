@@ -5,7 +5,7 @@ FROM node:22-alpine AS ui-builder
 
 WORKDIR /ui
 COPY ui/package.json ui/package-lock.json* ./
-RUN npm install
+RUN npm ci
 
 COPY ui/ ./
 RUN npm run build
@@ -15,7 +15,7 @@ RUN npm run build
 # =============================================================================
 # Always build on the host platform to avoid QEMU for Rust compilation.
 # Cross-compilation to arm64 is done via the aarch64-linux-gnu toolchain.
-FROM --platform=$BUILDPLATFORM rust:1-bookworm AS rust-builder
+FROM --platform=$BUILDPLATFORM rust:1.97-bookworm AS rust-builder
 
 # Set by Docker buildx: amd64 or arm64
 ARG TARGETARCH
@@ -63,6 +63,16 @@ RUN --mount=type=secret,id=git_auth_token \
 # Stage 3: Runtime image (minimal)
 # =============================================================================
 FROM debian:bookworm-slim
+
+ARG INDEXARR_BUILD_REF=dev
+ARG INDEXARR_BUILD_REVISION=unknown
+
+LABEL org.opencontainers.image.title="Indexarr" \
+      org.opencontainers.image.description="Decentralized torrent indexing with DHT crawling, content classification, and P2P sync" \
+      org.opencontainers.image.source="https://github.com/AusAgentSmith-org/indexarr-rs" \
+      org.opencontainers.image.licenses="AGPL-3.0-only" \
+      org.opencontainers.image.version="$INDEXARR_BUILD_REF" \
+      org.opencontainers.image.revision="$INDEXARR_BUILD_REVISION"
 
 # Copy CA bundle from builder to avoid apt-get, which can fail with GPG
 # signature errors inside isolated plugin Docker daemons.

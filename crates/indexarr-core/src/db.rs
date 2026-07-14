@@ -21,6 +21,50 @@ async fn run_migrations(pool: &PgPool) -> Result<(), sqlx::Error> {
     // Create tables
     sqlx::raw_sql(SCHEMA_SQL).execute(pool).await?;
 
+    // Classifier output is extensible and must not make an otherwise valid
+    // metadata fetch fail merely because a label outgrows an early schema
+    // estimate. TEXT also makes upgrades safe for existing installations.
+    sqlx::raw_sql(
+        "ALTER TABLE torrent_files ALTER COLUMN extension TYPE TEXT; \
+         ALTER TABLE torrent_content ALTER COLUMN hdr TYPE TEXT; \
+         ALTER TABLE torrent_content ALTER COLUMN audio_codec TYPE TEXT; \
+         ALTER TABLE torrent_content ALTER COLUMN audio_channels TYPE TEXT; \
+         ALTER TABLE torrent_content ALTER COLUMN edition TYPE TEXT; \
+         ALTER TABLE torrent_content ALTER COLUMN bit_depth TYPE TEXT; \
+         ALTER TABLE torrent_content ALTER COLUMN network TYPE TEXT; \
+         ALTER TABLE torrent_content ALTER COLUMN platform TYPE TEXT; \
+         ALTER TABLE torrent_content ALTER COLUMN music_format TYPE TEXT;",
+    )
+    .execute(pool)
+    .await?;
+
+    // A pre-0.3 resolver could mark locally fetched metadata as resolved
+    // before every file and classification row had been stored. Requeue only
+    // locally resolved sources that are missing classification; synced and
+    // imported historical rows intentionally may not have local content data.
+    let repaired = sqlx::query(
+        "WITH incomplete AS ( \
+             SELECT t.info_hash FROM torrents t \
+             WHERE t.source IN ('bep51', 'upload') \
+               AND t.resolved_at IS NOT NULL \
+               AND NOT EXISTS (SELECT 1 FROM torrent_content c WHERE c.info_hash = t.info_hash) \
+         ), removed_files AS ( \
+             DELETE FROM torrent_files f USING incomplete i \
+             WHERE f.info_hash = i.info_hash \
+         ) \
+         UPDATE torrents t SET resolved_at = NULL, retry_after = NULL, priority = TRUE \
+         FROM incomplete i WHERE t.info_hash = i.info_hash",
+    )
+    .execute(pool)
+    .await?
+    .rows_affected();
+    if repaired > 0 {
+        tracing::info!(
+            rows = repaired,
+            "requeued incomplete local metadata resolutions"
+        );
+    }
+
     // Versions before the issue #3 fix inserted random get_peers lookup
     // targets as if they were observed info-hashes. The get_peers source was
     // exclusive to that broken crawler path, so unresolved rows from it are
@@ -123,7 +167,7 @@ CREATE TABLE IF NOT EXISTS torrent_files (
     info_hash   VARCHAR(40) NOT NULL REFERENCES torrents(info_hash) ON DELETE CASCADE,
     path        TEXT NOT NULL,
     size        BIGINT NOT NULL,
-    extension   VARCHAR(20)
+    extension   TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_files_info_hash ON torrent_files (info_hash);
@@ -145,12 +189,12 @@ CREATE TABLE IF NOT EXISTS torrent_content (
     video_source        TEXT,
     modifier            TEXT,
     is_3d               BOOLEAN NOT NULL DEFAULT FALSE,
-    hdr                 VARCHAR(20),
-    audio_codec         VARCHAR(30),
-    audio_channels      VARCHAR(10),
-    edition             VARCHAR(50),
-    bit_depth           VARCHAR(10),
-    network             VARCHAR(20),
+    hdr                 TEXT,
+    audio_codec         TEXT,
+    audio_channels      TEXT,
+    edition             TEXT,
+    bit_depth           TEXT,
+    network             TEXT,
     quality_score       INTEGER,
     is_dubbed           BOOLEAN NOT NULL DEFAULT FALSE,
     is_complete         BOOLEAN NOT NULL DEFAULT FALSE,
@@ -158,10 +202,10 @@ CREATE TABLE IF NOT EXISTS torrent_content (
     is_scene            BOOLEAN NOT NULL DEFAULT FALSE,
     is_proper           BOOLEAN NOT NULL DEFAULT FALSE,
     is_repack           BOOLEAN NOT NULL DEFAULT FALSE,
-    platform            VARCHAR(30),
+    platform            TEXT,
     has_subtitles       BOOLEAN NOT NULL DEFAULT FALSE,
     is_anime            BOOLEAN NOT NULL DEFAULT FALSE,
-    music_format        VARCHAR(20),
+    music_format        TEXT,
     tmdb_id             INTEGER,
     imdb_id             VARCHAR(20),
     tmdb_data           JSONB,
