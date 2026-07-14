@@ -38,7 +38,6 @@ struct ResolveJob {
     info_hash: String,
     source: String,
     attempt: i32,
-    retry_after: chrono::DateTime<chrono::Utc>,
 }
 
 const NEW_BEP51_NUMERATOR: usize = 1;
@@ -219,6 +218,7 @@ impl MetadataResolver {
                             if let Err(error) =
                                 process_resolved(&pool, &hash, &meta, threshold).await
                             {
+                                let retry_at = schedule_retry(&pool, &job).await;
                                 record_attempt(
                                     &pool,
                                     &job,
@@ -233,7 +233,14 @@ impl MetadataResolver {
                                     Some(&error.to_string()),
                                 )
                                 .await;
-                                tracing::warn!(hash = %hash, error = %error, "failed to store metadata");
+                                tracing::warn!(
+                                    hash = %hash,
+                                    source = %job.source,
+                                    attempt = job.attempt,
+                                    retry_at = ?retry_at,
+                                    error = %error,
+                                    "failed to store metadata"
+                                );
                                 return;
                             }
                             record_attempt(
@@ -253,6 +260,7 @@ impl MetadataResolver {
                             }
                         }
                         Err(e) => {
+                            let retry_at = schedule_retry(&pool, &job).await;
                             record_attempt(
                                 &pool,
                                 &job,
@@ -272,7 +280,7 @@ impl MetadataResolver {
                                 no_bep10 = e.summary.no_bep10,
                                 timeout_fail = e.summary.timeout,
                                 other_fail = e.summary.other,
-                                retry_at = %job.retry_after,
+                                retry_at = ?retry_at,
                                 error = %e,
                                 "BEP 9 fetch failed"
                             );
@@ -365,12 +373,11 @@ impl MetadataResolver {
              claimed AS ( \
                UPDATE torrents t \
                SET resolve_attempts = t.resolve_attempts + 1, \
-                   retry_after = NOW() + (LEAST(86400::double precision, \
-                       30 * power(2, LEAST(t.resolve_attempts, 12))) * INTERVAL '1 second') \
+                   retry_after = NOW() + INTERVAL '10 minutes' \
                FROM ranked r WHERE t.info_hash = r.info_hash \
-               RETURNING t.info_hash, t.source, t.resolve_attempts, t.retry_after, r.lane, r.lane_row \
+               RETURNING t.info_hash, t.source, t.resolve_attempts, r.lane, r.lane_row \
              ) \
-             SELECT info_hash, source, resolve_attempts, retry_after \
+             SELECT info_hash, source, resolve_attempts \
              FROM claimed ORDER BY lane_row, lane LIMIT $4",
         )
         .bind(bep51_limit as i64)
@@ -385,7 +392,6 @@ impl MetadataResolver {
             info_hash: row.get("info_hash"),
             source: row.get("source"),
             attempt: row.get("resolve_attempts"),
-            retry_after: row.get("retry_after"),
         })
         .collect()
     }
@@ -429,6 +435,29 @@ async fn record_attempt(
     .bind(last_error)
     .execute(pool)
     .await;
+}
+
+/// Replace the claim lease with the actual exponential retry time after an
+/// attempt finishes. Until this runs, the 10-minute lease prevents another
+/// resolver loop (or process) from claiming the same in-flight hash.
+async fn schedule_retry(pool: &PgPool, job: &ResolveJob) -> Option<chrono::DateTime<chrono::Utc>> {
+    sqlx::query_scalar(
+        "UPDATE torrents \
+         SET retry_after = NOW() + ($2 * INTERVAL '1 second') \
+         WHERE info_hash = $1 AND resolved_at IS NULL \
+         RETURNING retry_after",
+    )
+    .bind(&job.info_hash)
+    .bind(retry_delay_secs(job.attempt))
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten()
+}
+
+fn retry_delay_secs(attempt: i32) -> i32 {
+    let exponent = (attempt - 1).clamp(0, 12) as u32;
+    30_i32.saturating_mul(2_i32.pow(exponent)).min(86_400)
 }
 
 /// Resolved metadata from a peer.
@@ -722,7 +751,7 @@ async fn process_resolved(
 
 #[cfg(test)]
 mod tests {
-    use super::fair_lane_limits;
+    use super::{fair_lane_limits, retry_delay_secs};
 
     #[test]
     fn fair_scheduler_reserves_live_and_upload_lanes() {
@@ -734,5 +763,13 @@ mod tests {
         assert_eq!(fair_lane_limits(0), (0, 0, 0));
         assert_eq!(fair_lane_limits(1), (1, 1, 0));
         assert_eq!(fair_lane_limits(2), (1, 1, 0));
+    }
+
+    #[test]
+    fn retry_backoff_starts_after_completion_and_caps_at_one_day() {
+        assert_eq!(retry_delay_secs(1), 30);
+        assert_eq!(retry_delay_secs(7), 1_920);
+        assert_eq!(retry_delay_secs(13), 86_400);
+        assert_eq!(retry_delay_secs(100), 86_400);
     }
 }
