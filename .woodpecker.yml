@@ -162,19 +162,21 @@ steps:
     depends_on: [build-candidate]
 
   - name: promote-dev
-    image: quay.io/skopeo/stable:v1.20.0
+    image: docker:27
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       FORGEJO_TOKEN:
         from_secret: git_auth_token
       GH_TOKEN:
         from_secret: gh_release_token
     commands:
-      - SRC="docker://repo.indexarr.net/indexarr/indexarr-rs:$CI_COMMIT_SHA"
-      - SRC_CREDS="--src-creds=$FORGEJO_TOKEN:$FORGEJO_TOKEN"
-      - DST_CREDS="--dest-creds=AusAgentSmith:$GH_TOKEN"
-      - skopeo copy $SRC_CREDS --dest-creds "$FORGEJO_TOKEN:$FORGEJO_TOKEN" "$SRC" docker://repo.indexarr.net/indexarr/indexarr-rs:dev
-      - skopeo copy $SRC_CREDS $DST_CREDS "$SRC" "docker://ghcr.io/ausagentsmith-org/indexarr-rs:$CI_COMMIT_SHA"
-      - skopeo copy $SRC_CREDS $DST_CREDS "$SRC" docker://ghcr.io/ausagentsmith-org/indexarr-rs:dev
+      - printf '%s' "$FORGEJO_TOKEN" | docker login repo.indexarr.net -u x-access-token --password-stdin
+      - printf '%s' "$GH_TOKEN" | docker login ghcr.io -u AusAgentSmith --password-stdin
+      - SRC="repo.indexarr.net/indexarr/indexarr-rs:$CI_COMMIT_SHA"
+      - docker buildx imagetools create -t repo.indexarr.net/indexarr/indexarr-rs:dev "$SRC"
+      - docker buildx imagetools create -t "ghcr.io/ausagentsmith-org/indexarr-rs:$CI_COMMIT_SHA" "$SRC"
+      - docker buildx imagetools create -t ghcr.io/ausagentsmith-org/indexarr-rs:dev "$SRC"
     when:
       - event: push
         branch: main
@@ -279,32 +281,38 @@ steps:
     depends_on: [smoke-release-amd64]
 
   - name: promote-release
-    image: quay.io/skopeo/stable:v1.20.0
+    image: docker:27
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       FORGEJO_TOKEN:
         from_secret: git_auth_token
       GH_TOKEN:
         from_secret: gh_release_token
     commands:
-      - SRC="docker://repo.indexarr.net/indexarr/indexarr-rs:$CI_COMMIT_TAG"
-      - SRC_CREDS="--src-creds=$FORGEJO_TOKEN:$FORGEJO_TOKEN"
-      - DST_CREDS="--dest-creds=AusAgentSmith:$GH_TOKEN"
-      - skopeo copy --multi-arch all $SRC_CREDS --dest-creds "$FORGEJO_TOKEN:$FORGEJO_TOKEN" "$SRC" docker://repo.indexarr.net/indexarr/indexarr-rs:latest
-      - skopeo copy --multi-arch all $SRC_CREDS $DST_CREDS "$SRC" "docker://ghcr.io/ausagentsmith-org/indexarr-rs:$CI_COMMIT_TAG"
-      - skopeo copy --multi-arch all $SRC_CREDS $DST_CREDS "$SRC" docker://ghcr.io/ausagentsmith-org/indexarr-rs:latest
+      - printf '%s' "$FORGEJO_TOKEN" | docker login repo.indexarr.net -u x-access-token --password-stdin
+      - printf '%s' "$GH_TOKEN" | docker login ghcr.io -u AusAgentSmith --password-stdin
+      - SRC="repo.indexarr.net/indexarr/indexarr-rs:$CI_COMMIT_TAG"
+      - docker buildx imagetools create -t repo.indexarr.net/indexarr/indexarr-rs:latest "$SRC"
+      - docker buildx imagetools create -t "ghcr.io/ausagentsmith-org/indexarr-rs:$CI_COMMIT_TAG" "$SRC"
+      - docker buildx imagetools create -t ghcr.io/ausagentsmith-org/indexarr-rs:latest "$SRC"
     when:
       - event: tag
     depends_on: [manifest-release]
 
   - name: verify-release-images
-    image: quay.io/skopeo/stable:v1.20.0
+    image: docker:27
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       FORGEJO_TOKEN:
         from_secret: git_auth_token
       GH_TOKEN:
         from_secret: gh_release_token
     commands:
-      - for arch in amd64 arm64; do skopeo inspect --creds "$FORGEJO_TOKEN:$FORGEJO_TOKEN" --override-arch "$arch" "docker://repo.indexarr.net/indexarr/indexarr-rs:$CI_COMMIT_TAG" >/dev/null; skopeo inspect --creds "$FORGEJO_TOKEN:$FORGEJO_TOKEN" --override-arch "$arch" docker://repo.indexarr.net/indexarr/indexarr-rs:latest >/dev/null; skopeo inspect --creds "AusAgentSmith:$GH_TOKEN" --override-arch "$arch" "docker://ghcr.io/ausagentsmith-org/indexarr-rs:$CI_COMMIT_TAG" >/dev/null; skopeo inspect --creds "AusAgentSmith:$GH_TOKEN" --override-arch "$arch" docker://ghcr.io/ausagentsmith-org/indexarr-rs:latest >/dev/null; done
+      - printf '%s' "$FORGEJO_TOKEN" | docker login repo.indexarr.net -u x-access-token --password-stdin
+      - printf '%s' "$GH_TOKEN" | docker login ghcr.io -u AusAgentSmith --password-stdin
+      - for ref in "repo.indexarr.net/indexarr/indexarr-rs:$CI_COMMIT_TAG" repo.indexarr.net/indexarr/indexarr-rs:latest "ghcr.io/ausagentsmith-org/indexarr-rs:$CI_COMMIT_TAG" ghcr.io/ausagentsmith-org/indexarr-rs:latest; do output=$(docker buildx imagetools inspect "$ref"); printf '%s' "$output" | grep -q 'linux/amd64'; printf '%s' "$output" | grep -q 'linux/arm64'; done
     when:
       - event: tag
     depends_on: [promote-release]
