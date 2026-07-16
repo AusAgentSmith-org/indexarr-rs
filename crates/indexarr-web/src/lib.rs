@@ -42,6 +42,18 @@ pub fn build_router(state: Arc<AppState>) -> Router {
     add_spa_fallback(app, state)
 }
 
+/// Build the restricted router exposed on the optional public sync port.
+///
+/// The normal web listener serves the UI, search, and administrative APIs.
+/// VPN/NAT port-forwarded listeners only need peer discovery and delta
+/// exchange, so keep that ingress surface deliberately small.
+pub fn build_sync_router(state: Arc<AppState>) -> Router {
+    Router::new()
+        .nest("/api/v1", routes::sync::router())
+        .route("/health", axum::routing::get(routes::health::health))
+        .with_state(state)
+}
+
 fn add_spa_fallback(app: Router, _state: Arc<AppState>) -> Router {
     let ui_dist = find_ui_dist();
     if let Some(dist_path) = ui_dist {
@@ -107,9 +119,34 @@ pub async fn run_server(
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!(%addr, "HTTP server listening");
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(async move { cancel.cancelled().await })
-        .await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(async move { cancel.cancelled().await })
+    .await?;
+
+    Ok(())
+}
+
+/// Run the restricted public sync listener until cancellation.
+pub async fn run_sync_server(
+    state: Arc<AppState>,
+    host: &str,
+    port: u16,
+    cancel: CancellationToken,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let app = build_sync_router(state);
+    let addr: SocketAddr = format!("{host}:{port}").parse()?;
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    tracing::info!(%addr, "public sync API listening");
+
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(async move { cancel.cancelled().await })
+    .await?;
 
     Ok(())
 }

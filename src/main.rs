@@ -162,6 +162,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Build shared state
     let host = settings.host.clone();
     let port = settings.port;
+    let sync_api_port = settings.sync_api_port;
     let state = AppState::new(pool, settings, identity, log_capture);
 
     // Cancellation token for graceful shutdown
@@ -201,14 +202,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut handles = Vec::new();
 
     if workers.iter().any(|w| w == "http_server") {
-        let state = state.clone();
-        let cancel = cancel.clone();
-        let host = host.clone();
+        let http_state = state.clone();
+        let http_cancel = cancel.clone();
+        let http_host = host.clone();
         handles.push(tokio::spawn(async move {
-            if let Err(e) = indexarr_web::run_server(state, &host, port, cancel).await {
+            if let Err(e) =
+                indexarr_web::run_server(http_state, &http_host, port, http_cancel).await
+            {
                 tracing::error!(error = %e, "HTTP server error");
             }
         }));
+
+        if sync_api_port != 0 && sync_api_port != port {
+            let state = state.clone();
+            let cancel = cancel.clone();
+            let host = host.clone();
+            handles.push(tokio::spawn(async move {
+                if let Err(e) =
+                    indexarr_web::run_sync_server(state, &host, sync_api_port, cancel).await
+                {
+                    tracing::error!(error = %e, port = sync_api_port, "public sync API error");
+                }
+            }));
+        }
     }
 
     // DHT crawler + resolver + peer refresher + BEP 51 sampler all share

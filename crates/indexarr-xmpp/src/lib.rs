@@ -21,6 +21,7 @@ mod plaintext;
 mod register;
 
 use std::collections::HashSet;
+use std::net::IpAddr;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -40,6 +41,7 @@ use tokio_xmpp::minidom;
 use tokio_xmpp::parsers::jid::{BareJid, Jid};
 use tokio_xmpp::parsers::muc::Muc;
 use tokio_xmpp::parsers::presence::{Presence, Type as PresenceType};
+use url::Url;
 
 use crate::plaintext::PlaintextConnector;
 
@@ -115,7 +117,7 @@ impl XmppChannel {
         };
 
         let (jid_str, password, muc_room, external_url) =
-            self.build_credentials(&contributor_id)?;
+            self.build_credentials(&contributor_id).await?;
 
         tracing::info!(jid = %jid_str, room = %muc_room, "xmpp: connecting");
 
@@ -274,7 +276,7 @@ impl XmppChannel {
             return Ok(());
         }
 
-        if !self.validate_peer(&url).await {
+        if !self.validate_peer(&contributor_id, &url).await {
             tracing::info!(peer = %contributor_id, url = %url, "xmpp: peer failed validation");
             return Ok(());
         }
@@ -285,16 +287,32 @@ impl XmppChannel {
         Ok(())
     }
 
-    async fn validate_peer(&self, url: &str) -> bool {
-        let manifest_url = format!("{}/api/v1/sync/manifest", url.trim_end_matches('/'));
-        match self.http.get(&manifest_url).send().await {
-            Ok(r) => r.status().is_success(),
-            Err(_) => false,
+    async fn validate_peer(&self, expected_contributor_id: &str, url: &str) -> bool {
+        if !is_advertisable_url(url) {
+            return false;
         }
+        let manifest_url = format!("{}/api/v1/sync/manifest", url.trim_end_matches('/'));
+        let Ok(response) = self.http.get(&manifest_url).send().await else {
+            return false;
+        };
+        if !response.status().is_success() {
+            return false;
+        }
+        response
+            .json::<serde_json::Value>()
+            .await
+            .ok()
+            .and_then(|manifest| {
+                manifest
+                    .get("contributor_id")
+                    .and_then(serde_json::Value::as_str)
+                    .map(|actual| actual == expected_contributor_id)
+            })
+            .unwrap_or(false)
     }
 
     /// Build JID, password, MUC room JID, and the HTTP URL to advertise.
-    fn build_credentials(
+    async fn build_credentials(
         &self,
         contributor_id: &str,
     ) -> Result<(String, String, String, String), String> {
@@ -331,15 +349,130 @@ impl XmppChannel {
         };
 
         let external_url = if self.settings.sync_external_url.is_empty() {
-            format!("http://{}:{}", self.settings.host, self.settings.port)
+            self.discover_external_url().await?
         } else {
             self.settings
                 .sync_external_url
                 .trim_end_matches('/')
                 .to_string()
         };
+        if !is_advertisable_url(&external_url) {
+            return Err(format!(
+                "INDEXARR_SYNC_EXTERNAL_URL is not a publicly advertisable HTTP(S) URL: {external_url}"
+            ));
+        }
 
         Ok((jid, password, muc_room, external_url))
+    }
+
+    async fn discover_external_url(&self) -> Result<String, String> {
+        let scheme = self.settings.sync_external_scheme.to_ascii_lowercase();
+        if !matches!(scheme.as_str(), "http" | "https") {
+            return Err(format!(
+                "INDEXARR_SYNC_EXTERNAL_SCHEME must be http or https, got {scheme}"
+            ));
+        }
+
+        for bootstrap in &self.settings.sync_peers {
+            let endpoint = format!(
+                "{}/api/v1/sync/observed-address",
+                bootstrap.trim_end_matches('/')
+            );
+            let response = match self.http.get(&endpoint).send().await {
+                Ok(response) if response.status().is_success() => response,
+                Ok(response) => {
+                    tracing::debug!(%bootstrap, status = %response.status(), "external address discovery failed");
+                    continue;
+                }
+                Err(error) => {
+                    tracing::debug!(%bootstrap, %error, "external address discovery failed");
+                    continue;
+                }
+            };
+
+            let body = match response.json::<serde_json::Value>().await {
+                Ok(body) => body,
+                Err(error) => {
+                    tracing::debug!(%bootstrap, %error, "invalid external address response");
+                    continue;
+                }
+            };
+            let observed = body
+                .get("ip")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("");
+            let ip = match observed.parse::<IpAddr>() {
+                Ok(ip) if is_public_ip(ip) => ip,
+                _ => {
+                    tracing::debug!(%bootstrap, ip = %observed, "bootstrap returned non-public address");
+                    continue;
+                }
+            };
+
+            let host = match ip {
+                IpAddr::V4(ip) => ip.to_string(),
+                IpAddr::V6(ip) => format!("[{ip}]"),
+            };
+            let external_port = effective_external_port(
+                self.settings.sync_external_port,
+                self.settings.sync_api_port,
+                self.settings.port,
+            );
+            let external_url = format!("{scheme}://{host}:{external_port}");
+            tracing::info!(%bootstrap, %external_url, "xmpp: discovered external sync URL");
+            return Ok(external_url);
+        }
+
+        Err("could not discover a public address from any INDEXARR_SYNC_PEERS bootstrap; set INDEXARR_SYNC_EXTERNAL_URL explicitly".to_string())
+    }
+}
+
+fn is_public_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(ip) => {
+            !(ip.is_private()
+                || ip.is_loopback()
+                || ip.is_link_local()
+                || ip.is_broadcast()
+                || ip.is_documentation()
+                || ip.is_unspecified()
+                || ip.is_multicast())
+        }
+        IpAddr::V6(ip) => {
+            !(ip.is_loopback()
+                || ip.is_unspecified()
+                || ip.is_multicast()
+                || ip.is_unique_local()
+                || ip.is_unicast_link_local())
+        }
+    }
+}
+
+fn effective_external_port(configured: u16, sync_api_port: u16, http_port: u16) -> u16 {
+    if configured != 0 {
+        configured
+    } else if sync_api_port != 0 {
+        sync_api_port
+    } else {
+        http_port
+    }
+}
+
+fn is_advertisable_url(value: &str) -> bool {
+    let Ok(url) = Url::parse(value) else {
+        return false;
+    };
+    if !matches!(url.scheme(), "http" | "https")
+        || !url.username().is_empty()
+        || url.password().is_some()
+    {
+        return false;
+    }
+    match url.host() {
+        Some(url::Host::Ipv4(ip)) => is_public_ip(IpAddr::V4(ip)),
+        Some(url::Host::Ipv6(ip)) => is_public_ip(IpAddr::V6(ip)),
+        Some(url::Host::Domain(domain)) => !domain.eq_ignore_ascii_case("localhost"),
+        None => false,
     }
 }
 
@@ -356,7 +489,7 @@ fn parse_nick(nick: &str) -> Option<(String, String)> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_nick;
+    use super::{effective_external_port, is_advertisable_url, is_public_ip, parse_nick};
 
     #[test]
     fn parses_valid_nick() {
@@ -374,5 +507,42 @@ mod tests {
     fn rejects_empty_halves() {
         assert!(parse_nick("|http://x").is_none());
         assert!(parse_nick("TN-x|").is_none());
+    }
+
+    #[test]
+    fn rejects_non_public_ip_addresses() {
+        for ip in [
+            "0.0.0.0",
+            "127.0.0.1",
+            "10.0.0.1",
+            "192.168.1.2",
+            "::",
+            "::1",
+        ] {
+            assert!(!is_public_ip(ip.parse().unwrap()), "accepted {ip}");
+        }
+        assert!(is_public_ip("8.8.8.8".parse().unwrap()));
+    }
+
+    #[test]
+    fn rejects_unadvertisable_urls() {
+        for url in [
+            "http://0.0.0.0:8080",
+            "http://127.0.0.1:8080",
+            "http://192.168.1.2:8080",
+            "http://localhost:8080",
+            "ftp://example.com/file",
+        ] {
+            assert!(!is_advertisable_url(url), "accepted {url}");
+        }
+        assert!(is_advertisable_url("https://bootstrap.indexarr.net"));
+        assert!(is_advertisable_url("http://8.8.8.8:8080"));
+    }
+
+    #[test]
+    fn external_port_prefers_override_then_sync_listener_then_http() {
+        assert_eq!(effective_external_port(9443, 50000, 8080), 9443);
+        assert_eq!(effective_external_port(0, 50000, 8080), 50000);
+        assert_eq!(effective_external_port(0, 0, 8080), 8080);
     }
 }

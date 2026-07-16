@@ -1849,6 +1849,7 @@ dependencies = [
  "tokio-util",
  "tokio-xmpp",
  "tracing",
+ "url",
 ]
 
 [[package]]

@@ -96,6 +96,8 @@ pub struct Settings {
     pub sync_delta_cache_mb: u32,
     pub sync_accept_push: bool,
     pub sync_external_url: String,
+    pub sync_external_scheme: String,
+    pub sync_external_port: u16,
 
     // Peer reputation
     pub sync_reputation_initial: f64,
@@ -184,11 +186,14 @@ impl Settings {
 
             torznab_api_key: env_str("INDEXARR_TORZNAB_API_KEY", ""),
 
-            sync_enabled: env_bool("INDEXARR_SYNC_ENABLED", false),
+            sync_enabled: env_bool("INDEXARR_SYNC_ENABLED", true),
             sync_export_interval: env_u64("INDEXARR_SYNC_EXPORT_INTERVAL", 3600),
             sync_import_interval: env_u64("INDEXARR_SYNC_IMPORT_INTERVAL", 300),
             sync_discovery_interval: env_u64("INDEXARR_SYNC_DISCOVERY_INTERVAL", 900),
-            sync_peers: env_json_list("INDEXARR_SYNC_PEERS"),
+            sync_peers: env_json_list_or(
+                "INDEXARR_SYNC_PEERS",
+                &["https://bootstrap.indexarr.net"],
+            ),
             sync_lt_port: env_u16("INDEXARR_SYNC_LT_PORT", 6890),
             sync_dht_port: env_u16("INDEXARR_SYNC_DHT_PORT", 6895),
             sync_dht_enabled: env_bool("INDEXARR_SYNC_DHT_ENABLED", true),
@@ -203,6 +208,10 @@ impl Settings {
             sync_delta_cache_mb: env_u32("INDEXARR_SYNC_DELTA_CACHE_MB", 512),
             sync_accept_push: env_bool("INDEXARR_SYNC_ACCEPT_PUSH", true),
             sync_external_url: env_str("INDEXARR_SYNC_EXTERNAL_URL", ""),
+            sync_external_scheme: env_str("INDEXARR_SYNC_EXTERNAL_SCHEME", "http"),
+            // Zero means "use INDEXARR_PORT". This keeps binary installs and
+            // CLI --port overrides aligned without Docker-specific defaults.
+            sync_external_port: env_u16("INDEXARR_SYNC_EXTERNAL_PORT", 0),
 
             sync_reputation_initial: env_f64("INDEXARR_SYNC_REPUTATION_INITIAL", 100.0),
             sync_reputation_trusted: env_f64("INDEXARR_SYNC_REPUTATION_TRUSTED", 500.0),
@@ -224,7 +233,7 @@ impl Settings {
 
             sync_reachability_check: env_bool("INDEXARR_SYNC_REACHABILITY_CHECK", true),
 
-            xmpp_enabled: env_bool("INDEXARR_XMPP_ENABLED", false),
+            xmpp_enabled: env_bool("INDEXARR_XMPP_ENABLED", true),
             xmpp_jid: env_str("INDEXARR_XMPP_JID", ""),
             xmpp_password: env_str("INDEXARR_XMPP_PASSWORD", ""),
             xmpp_server: env_str("INDEXARR_XMPP_SERVER", ""),
@@ -238,7 +247,13 @@ impl Settings {
 
             workers: env_csv_or(
                 "INDEXARR_WORKERS",
-                &["http_server", "dht_crawler", "resolver", "announcer"],
+                &[
+                    "http_server",
+                    "dht_crawler",
+                    "resolver",
+                    "announcer",
+                    "sync",
+                ],
             ),
         }
     }
@@ -348,10 +363,10 @@ fn env_list(key: &str, defaults: &[&str]) -> Vec<String> {
     defaults.iter().map(|s| (*s).to_string()).collect()
 }
 
-fn env_json_list(key: &str) -> Vec<String> {
+fn env_json_list_or(key: &str, defaults: &[&str]) -> Vec<String> {
     std::env::var(key)
         .ok()
         .filter(|v| !v.is_empty())
         .and_then(|v| serde_json::from_str::<Vec<String>>(&v).ok())
-        .unwrap_or_default()
+        .unwrap_or_else(|| defaults.iter().map(|value| (*value).to_string()).collect())
 }

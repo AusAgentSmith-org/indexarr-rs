@@ -1,7 +1,9 @@
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
 use axum::Router;
-use axum::extract::{Path, State};
+use axum::extract::{ConnectInfo, Path, State};
+use axum::http::HeaderMap;
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Json, Response};
 use axum::routing::get;
@@ -158,6 +160,33 @@ async fn get_sync_peers(State(state): State<Arc<AppState>>) -> Json<serde_json::
     Json(serde_json::json!({ "peers": peers }))
 }
 
+/// Return the public source address observed by the bootstrap service.
+///
+/// Cloudflare and reverse proxies preserve the original client address in
+/// forwarding headers. Direct deployments fall back to the TCP peer address.
+/// Only the IP is reflected; clients remain responsible for choosing and
+/// exposing their externally reachable sync port.
+async fn get_observed_address(
+    ConnectInfo(remote): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+) -> Json<serde_json::Value> {
+    let ip = observed_client_ip(&headers, remote.ip());
+    Json(serde_json::json!({ "ip": ip.to_string() }))
+}
+
+fn observed_client_ip(headers: &HeaderMap, remote_ip: IpAddr) -> IpAddr {
+    const FORWARDED_IP_HEADERS: [&str; 3] = ["cf-connecting-ip", "x-real-ip", "x-forwarded-for"];
+
+    FORWARDED_IP_HEADERS
+        .iter()
+        .filter_map(|name| headers.get(*name))
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|value| value.split(','))
+        .filter_map(|value| value.trim().parse::<IpAddr>().ok())
+        .next()
+        .unwrap_or(remote_ip)
+}
+
 async fn get_sync_delta(
     State(state): State<Arc<AppState>>,
     Path(content_hash): Path<String>,
@@ -195,5 +224,46 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/sync/status", get(get_sync_status))
         .route("/sync/manifest", get(get_sync_manifest))
         .route("/sync/peers", get(get_sync_peers))
+        .route("/sync/observed-address", get(get_observed_address))
         .route("/sync/delta/{content_hash}", get(get_sync_delta))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::observed_client_ip;
+    use axum::http::{HeaderMap, HeaderValue};
+    use std::net::IpAddr;
+
+    #[test]
+    fn observed_address_prefers_cloudflare_header() {
+        let mut headers = HeaderMap::new();
+        headers.insert("cf-connecting-ip", HeaderValue::from_static("203.0.113.7"));
+        headers.insert("x-forwarded-for", HeaderValue::from_static("198.51.100.8"));
+
+        assert_eq!(
+            observed_client_ip(&headers, "10.0.0.1".parse().unwrap()),
+            "203.0.113.7".parse::<IpAddr>().unwrap()
+        );
+    }
+
+    #[test]
+    fn observed_address_uses_first_forwarded_ip() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "x-forwarded-for",
+            HeaderValue::from_static("198.51.100.8, 172.16.0.2"),
+        );
+
+        assert_eq!(
+            observed_client_ip(&headers, "10.0.0.1".parse().unwrap()),
+            "198.51.100.8".parse::<IpAddr>().unwrap()
+        );
+    }
+
+    #[test]
+    fn observed_address_falls_back_to_socket_peer() {
+        let headers = HeaderMap::new();
+        let remote = "198.51.100.9".parse::<IpAddr>().unwrap();
+        assert_eq!(observed_client_ip(&headers, remote), remote);
+    }
 }
