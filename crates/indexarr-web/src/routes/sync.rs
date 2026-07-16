@@ -175,7 +175,9 @@ async fn get_observed_address(
 }
 
 fn observed_client_ip(headers: &HeaderMap, remote_ip: IpAddr) -> IpAddr {
-    const FORWARDED_IP_HEADERS: [&str; 3] = ["cf-connecting-ip", "x-real-ip", "x-forwarded-for"];
+    // Caddy's X-Real-IP can be the Docker gateway when it proxies across a
+    // bridge network. Prefer the original client chain it appends to XFF.
+    const FORWARDED_IP_HEADERS: [&str; 3] = ["cf-connecting-ip", "x-forwarded-for", "x-real-ip"];
 
     FORWARDED_IP_HEADERS
         .iter()
@@ -249,6 +251,7 @@ mod tests {
     #[test]
     fn observed_address_uses_first_forwarded_ip() {
         let mut headers = HeaderMap::new();
+        headers.insert("x-real-ip", HeaderValue::from_static("172.21.0.1"));
         headers.insert(
             "x-forwarded-for",
             HeaderValue::from_static("198.51.100.8, 172.16.0.2"),
