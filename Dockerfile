@@ -74,9 +74,10 @@ LABEL org.opencontainers.image.title="Indexarr" \
       org.opencontainers.image.version="$INDEXARR_BUILD_REF" \
       org.opencontainers.image.revision="$INDEXARR_BUILD_REVISION"
 
-# Copy CA bundle from builder to avoid apt-get, which can fail with GPG
-# signature errors inside isolated plugin Docker daemons.
-COPY --from=rust-builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+# The production entrypoint polls Egressy's local status API before launching
+# Indexarr and whenever a forwarded port changes.
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
