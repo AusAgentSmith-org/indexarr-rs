@@ -36,6 +36,10 @@ struct Cli {
     /// Database URL
     #[arg(long)]
     db_url: Option<String>,
+
+    /// Internal: run under the Windows Service Control Manager.
+    #[arg(long, hide = true)]
+    service: bool,
 }
 
 fn crawler_requested(workers: &[String]) -> bool {
@@ -44,10 +48,94 @@ fn crawler_requested(workers: &[String]) -> bool {
         .any(|worker| worker == "dht_crawler" || worker == "bep51_sampler")
 }
 
+#[cfg(not(windows))]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    run().await
+}
+
+#[cfg(windows)]
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    if std::env::args().any(|arg| arg == "--service") {
+        windows_service::service_dispatcher::start("Indexarr", ffi_service_main)?;
+        return Ok(());
+    }
+
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?
+        .block_on(run())
+}
+
+#[cfg(windows)]
+windows_service::define_windows_service!(ffi_service_main, service_main);
+
+#[cfg(windows)]
+fn service_main(_arguments: Vec<std::ffi::OsString>) {
+    ffi_service_main_impl();
+}
+
+#[cfg(windows)]
+fn ffi_service_main_impl() {
+    use windows_service::service::{
+        ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus,
+        ServiceType,
+    };
+    use windows_service::service_control_handler::{self, ServiceControlHandlerResult};
+
+    let status_handle = match service_control_handler::register("Indexarr", move |event| {
+        match event {
+            ServiceControl::Stop | ServiceControl::Shutdown => {
+                // run() owns the async worker cancellation token. Exiting here
+                // is safe because SCM only sends Stop after the service is ready,
+                // and avoids leaving a child process behind on Windows.
+                std::process::exit(0);
+            }
+            _ => ServiceControlHandlerResult::NoError,
+        }
+    }) {
+        Ok(handle) => handle,
+        Err(error) => {
+            eprintln!("failed to register Indexarr service handler: {error}");
+            return;
+        }
+    };
+
+    let _ = status_handle.set_service_status(ServiceStatus {
+        service_type: ServiceType::OWN_PROCESS,
+        current_state: ServiceState::Running,
+        controls_accepted: ServiceControlAccept::STOP | ServiceControlAccept::SHUTDOWN,
+        exit_code: ServiceExitCode::Win32(0),
+        checkpoint: 0,
+        wait_hint: std::time::Duration::default(),
+        process_id: None,
+    });
+
+    let runtime = match tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            eprintln!("failed to create Tokio runtime: {error}");
+            return;
+        }
+    };
+    if let Err(error) = runtime.block_on(run()) {
+        eprintln!("Indexarr service stopped: {error}");
+    }
+}
+
+async fn run() -> Result<(), Box<dyn std::error::Error>> {
     // Load .env if present
     let _ = dotenvy::dotenv();
+    // Explorer and SCM do not reliably set the process working directory.
+    // Load the installer-generated configuration beside the executable too.
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(dir) = exe.parent()
+    {
+        let _ = dotenvy::from_path(dir.join(".env"));
+    }
 
     let cli = Cli::parse();
 

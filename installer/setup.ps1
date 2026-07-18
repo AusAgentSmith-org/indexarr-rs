@@ -44,6 +44,10 @@ if ($LASTEXITCODE -ne 0) { throw "initdb failed (exit $LASTEXITCODE)" }
 # ── 3. Configure port ─────────────────────────────────────────────────────────
 (Get-Content "$pgData\postgresql.conf") -replace '#port = 5432', "port = $PgPort" |
     Set-Content "$pgData\postgresql.conf"
+# The EDB binary bundle does not include the full timezone database.  Keep
+# installs portable across Windows regional settings instead of inheriting a
+# zone (for example Australia/Sydney) that PostgreSQL cannot resolve.
+Add-Content "$pgData\postgresql.conf" "`ntimezone = 'UTC'`nlog_timezone = 'UTC'"
 
 # ── 4. Register + start PostgreSQL service ────────────────────────────────────
 Log "Registering PostgreSQL service..."

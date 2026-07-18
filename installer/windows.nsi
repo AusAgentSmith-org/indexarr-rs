@@ -67,7 +67,7 @@ Section "${APP_NAME}" SecMain
 
   ; Register Indexarr as a Windows service
   DetailPrint "Registering Indexarr service..."
-  nsExec::ExecToLog 'sc create "${SVC_NAME}" binPath= "\"$INSTDIR\${APP_EXE}\" --all" start= auto DisplayName= "${APP_NAME}"'
+  nsExec::ExecToLog 'sc create "${SVC_NAME}" binPath= "\"$INSTDIR\${APP_EXE}\" --service --all" start= auto depend= "${PG_SVC_NAME}" DisplayName= "${APP_NAME}"'
   nsExec::ExecToLog 'sc description "${SVC_NAME}" "Decentralized torrent indexer"'
   nsExec::ExecToLog 'sc start "${SVC_NAME}"'
 

@@ -51,6 +51,9 @@ tracing-subscriber.workspace = true
 dotenvy.workspace = true
 parking_lot.workspace = true
 
+[target.'cfg(windows)'.dependencies]
+windows-service = "0.8"
+
 [workspace.package]
 version = "0.3.1"
 edition = "2024"
