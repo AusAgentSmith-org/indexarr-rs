@@ -5,6 +5,11 @@ when:
   - event: manual
   - event: pull_request
 
+# Every step uses Linux container images or the Linux Docker socket. Without
+# an explicit constraint Woodpecker may schedule this workflow on a Windows
+# local-backend agent and attempt to execute the image name as a host binary.
+platform: linux/amd64
+
 variables:
   - &cargo_setup |
       printf '[registries.forgejo]\ntoken = "Bearer %s"\n' "$GIT_AUTH_TOKEN" > "$CARGO_HOME/credentials.toml"
