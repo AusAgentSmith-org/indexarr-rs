@@ -596,7 +596,7 @@
       "get": {
         "tags": ["Torznab"],
         "summary": "Torznab/Newznab API",
-        "description": "Torznab-compatible XML API for integration with Sonarr, Radarr, Lidarr, Readarr, and Prowlarr. Supports 30 Newznab categories.\n\n**Functions:** `caps` (capabilities), `search` (general), `tvsearch` (TV), `movie`, `music`, `book`.",
+        "description": "Torznab-compatible XML API for integration with Sonarr, Radarr, Lidarr, Readarr, and Prowlarr. Supports 30 Newznab categories.\n\nFor Prowlarr Generic Torznab, configure the Indexarr base address (for example `http://your-indexarr:8080`) in **URL** and `/api/torznab` in **API Path**. Prowlarr appends API Path to URL.\n\n**Functions:** `caps` (capabilities), `search` (general), `tvsearch` (TV), `movie`, `music`, `book`.",
         "parameters": [
           { "name": "t", "in": "query", "required": true, "schema": { "type": "string", "enum": ["caps", "search", "tvsearch", "movie", "music", "book"] }, "description": "API function" },
           { "name": "q", "in": "query", "schema": { "type": "string" }, "description": "Search query" },

@@ -387,5 +387,68 @@ async fn do_search(state: &AppState, params: &TorznabParams) -> Result<String, s
 }
 
 pub fn router(_state: Arc<AppState>) -> Router<Arc<AppState>> {
-    Router::new().route("/", get(torznab_api))
+    Router::new()
+        .route("/", get(torznab_api))
+        // Generic Torznab defaults its API Path to `/api`. Accept the
+        // resulting compatibility URL when users put `/api/torznab` in the
+        // Prowlarr URL field instead of configuring API Path separately.
+        .route("/api", get(torznab_api))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use indexarr_core::config::Settings;
+    use indexarr_identity::ContributorIdentity;
+    use sqlx::postgres::PgPoolOptions;
+    use tower::ServiceExt;
+
+    use crate::log_capture::LogCapture;
+
+    fn test_state() -> Arc<AppState> {
+        let pool = PgPoolOptions::new()
+            .connect_lazy("postgres://indexarr:indexarr@localhost/indexarr")
+            .expect("test database URL should be valid");
+        let mut settings = Settings::from_env();
+        settings.torznab_api_key.clear();
+        AppState::new(
+            pool,
+            settings,
+            ContributorIdentity::new(&std::env::temp_dir()),
+            LogCapture::new(10),
+        )
+    }
+
+    async fn assert_caps_endpoint(path: &str) {
+        let app = Router::new()
+            .nest("/api/torznab", router(test_state()))
+            .with_state(test_state());
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri(path)
+                    .body(Body::empty())
+                    .expect("request should be valid"),
+            )
+            .await
+            .expect("Torznab route should respond");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/xml"
+        );
+    }
+
+    #[tokio::test]
+    async fn serves_caps_at_documented_path() {
+        assert_caps_endpoint("/api/torznab?t=caps").await;
+    }
+
+    #[tokio::test]
+    async fn serves_caps_at_prowlarr_default_api_path() {
+        assert_caps_endpoint("/api/torznab/api?t=caps").await;
+    }
 }

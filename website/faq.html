@@ -618,9 +618,10 @@
                         <div class="faq-answer-inner">
                             <p>Indexarr implements the full Torznab/Newznab API with 30 categories. To add it:</p>
                             <ul>
-                                <li>In <strong>Prowlarr:</strong> Add a new Indexer &rarr; Generic Torznab &rarr; URL: <code>http://your-indexarr:8080/api/torznab</code></li>
-                                <li>In <strong>Sonarr/Radarr</strong> (direct): Settings &rarr; Indexers &rarr; Add Torznab &rarr; same URL</li>
+                                <li>In <strong>Prowlarr:</strong> Add a new Indexer &rarr; Generic Torznab &rarr; URL: <code>http://your-indexarr:8080</code> &rarr; API Path: <code>/api/torznab</code></li>
+                                <li>In <strong>Sonarr/Radarr</strong> (direct): Settings &rarr; Indexers &rarr; Add Torznab and use the same separate URL and API Path values.</li>
                             </ul>
+                            <p>Do not put <code>/api/torznab</code> in Prowlarr's URL field while leaving its default API Path in place. Prowlarr appends API Path to URL, and the combined path will not be the Torznab endpoint.</p>
                             <p>If you've set an API key in Indexarr, provide it in the API Key field. Otherwise, leave it blank.</p>
                         </div>
                     </div>

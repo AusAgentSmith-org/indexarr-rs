@@ -64,8 +64,12 @@ onMounted(load)
           Select <strong>"Generic Newznab"</strong> or <strong>"Torznab"</strong> as the indexer type
         </li>
         <li>
-          Set the <strong>URL</strong> to your Indexarr instance:
-          <code class="url-example">http://&lt;your-host&gt;:8080/api/torznab</code>
+          Set <strong>URL</strong> to the base address of your Indexarr instance:
+          <code class="url-example">http://&lt;your-host&gt;:8080</code>
+        </li>
+        <li>
+          Set <strong>API Path</strong> to:
+          <code class="url-example">/api/torznab</code>
         </li>
         <li>
           Enter your <strong>API Key</strong> from the section below
@@ -81,6 +85,9 @@ onMounted(load)
           <circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" />
         </svg>
         <span>
+          Keep the endpoint out of Prowlarr's URL field. Prowlarr joins URL and API Path when it
+          builds requests, so entering <code>/api/torznab</code> in both places produces an invalid path.
+          <br />
           The API key is configured on the <router-link to="/system/general">General</router-link> settings page
           via the <code>INDEXARR_TORZNAB_API_KEY</code> environment variable, or generated below.
         </span>
