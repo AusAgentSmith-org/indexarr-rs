@@ -12,6 +12,9 @@ website/node_modules/
 installer/indexarr.exe
 installer/pgsql.zip
 installer/*.exe
+installer/local-build/
+installer/dist/
+installer/dist-local/
 !installer/windows.nsi
 !installer/setup.ps1
 !installer/linux-install.sh

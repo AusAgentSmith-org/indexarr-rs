@@ -109,7 +109,14 @@ Section "${APP_NAME}" SecMain
 
   ; Register Indexarr as a Windows service
   DetailPrint "Registering Indexarr service..."
-  nsExec::ExecToLog 'sc create "${SVC_NAME}" binPath= "\"$INSTDIR\${APP_EXE}\" --service --all" start= auto depend= "${PG_SVC_NAME}" DisplayName= "${APP_NAME}"'
+  ; Pass the selected port explicitly so upgrades of an existing service do
+  ; not retain its previous command line or port.
+  nsExec::ExecToLog 'sc create "${SVC_NAME}" binPath= "\"$INSTDIR\${APP_EXE}\" --service --all --port $HttpPort" start= auto depend= "${PG_SVC_NAME}" DisplayName= "${APP_NAME}"'
+  Pop $0
+  ${If} $0 != 0
+    nsExec::ExecToLog 'sc config "${SVC_NAME}" binPath= "\"$INSTDIR\${APP_EXE}\" --service --all --port $HttpPort"'
+    Pop $0
+  ${EndIf}
   nsExec::ExecToLog 'sc description "${SVC_NAME}" "Decentralized torrent indexer"'
   nsExec::ExecToLog 'sc start "${SVC_NAME}"'
 

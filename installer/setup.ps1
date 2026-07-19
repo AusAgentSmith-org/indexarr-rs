@@ -100,7 +100,7 @@ Log "Writing configuration..."
 INDEXARR_DB_URL=postgres://${PgUser}:${PgUser}@127.0.0.1:${PgPort}/${PgDb}
 INDEXARR_DATA_DIR=${DataDir}
 INDEXARR_PORT=${HttpPort}
-"@ | Set-Content "$InstallDir\.env" -Encoding UTF8
+"@ | Set-Content "$InstallDir\.env" -Encoding ASCII
 
 Log "Setup complete."
 Stop-Transcript
