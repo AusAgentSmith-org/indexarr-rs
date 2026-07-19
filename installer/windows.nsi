@@ -27,6 +27,12 @@ RequestExecutionLevel admin
 SetCompressor /SOLID lzma
 
 !define MUI_ABORTWARNING
+; Offer to open the local web UI when the user clicks Finish. The service is
+; started during installation, so wait briefly for it to bind before opening
+; the browser. The checkbox is selected by default but can be cleared.
+!define MUI_FINISHPAGE_RUN
+!define MUI_FINISHPAGE_RUN_FUNCTION "LaunchWebUI"
+!define MUI_FINISHPAGE_RUN_TEXT "Open Indexarr in browser"
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
@@ -84,6 +90,11 @@ Section "${APP_NAME}" SecMain
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "Publisher"       "${APP_NAME}"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "DisplayIcon"     "$INSTDIR\${APP_EXE}"
 SectionEnd
+
+Function LaunchWebUI
+  Sleep 1500
+  ExecShell "open" "http://localhost:8080/"
+FunctionEnd
 
 Section "Uninstall"
   nsExec::ExecToLog 'sc stop "${SVC_NAME}"'
