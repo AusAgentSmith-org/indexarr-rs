@@ -7,6 +7,8 @@ param(
     [string]$PgZip,
     [string]$PgVersion = "17.4",
     [string]$PgPort    = "5432",
+    [ValidateRange(1, 65535)]
+    [int]$HttpPort     = 8080,
     [string]$PgUser    = "indexarr",
     [string]$PgDb      = "indexarr"
 )
@@ -97,6 +99,7 @@ Log "Writing configuration..."
 @"
 INDEXARR_DB_URL=postgres://${PgUser}:${PgUser}@127.0.0.1:${PgPort}/${PgDb}
 INDEXARR_DATA_DIR=${DataDir}
+INDEXARR_PORT=${HttpPort}
 "@ | Set-Content "$InstallDir\.env" -Encoding UTF8
 
 Log "Setup complete."

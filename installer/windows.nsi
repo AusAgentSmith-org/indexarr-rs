@@ -5,6 +5,7 @@
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
 !include "x64.nsh"
+!include "nsDialogs.nsh"
 
 !ifndef VERSION
   !define VERSION "dev"
@@ -34,6 +35,7 @@ SetCompressor /SOLID lzma
 !define MUI_FINISHPAGE_RUN_FUNCTION "LaunchWebUI"
 !define MUI_FINISHPAGE_RUN_TEXT "Open Indexarr in browser"
 !insertmacro MUI_PAGE_WELCOME
+Page custom HttpPortPage HttpPortPageLeave
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
@@ -42,6 +44,40 @@ SetCompressor /SOLID lzma
 !insertmacro MUI_UNPAGE_INSTFILES
 
 !insertmacro MUI_LANGUAGE "English"
+
+Var HttpPortCtrl
+Var HttpPort
+
+Function HttpPortPage
+  !insertmacro MUI_HEADER_TEXT "Web server port" "Choose the local port for the Indexarr web interface"
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+  ${NSD_CreateLabel} 0 0 100% 30u "Indexarr will listen on this port. Choose a different port if 8080 is already in use."
+  Pop $0
+  ${NSD_CreateLabel} 0 38u 35% 12u "HTTP port:"
+  Pop $0
+  ${NSD_CreateText} 40% 36u 55% 14u "8080"
+  Pop $HttpPortCtrl
+  nsDialogs::Show
+FunctionEnd
+
+Function HttpPortPageLeave
+  ${NSD_GetText} $HttpPortCtrl $HttpPort
+  ${If} $HttpPort == ""
+    MessageBox MB_OK|MB_ICONEXCLAMATION "Enter an HTTP port between 1 and 65535."
+    Abort
+  ${EndIf}
+  IntCmp $HttpPort 1 http_port_lower_ok http_port_invalid http_port_lower_ok
+http_port_lower_ok:
+  IntCmp $HttpPort 65535 http_port_valid http_port_valid http_port_invalid
+http_port_invalid:
+  MessageBox MB_OK|MB_ICONEXCLAMATION "Enter an HTTP port between 1 and 65535."
+  Abort
+http_port_valid:
+FunctionEnd
 
 Section "${APP_NAME}" SecMain
   SectionIn RO
@@ -64,7 +100,7 @@ Section "${APP_NAME}" SecMain
 
   ; Run the PowerShell setup script (extracts bundled PG, runs initdb, creates DB, writes .env)
   DetailPrint "Setting up database (this takes a minute)..."
-  nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\setup.ps1" -InstallDir "$INSTDIR" -DataDir "$APPDATA\${APP_NAME}" -PgZip "$INSTDIR\pgsql.zip" -PgVersion "${PG_VERSION}" -PgPort "${PG_PORT}"'
+  nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\setup.ps1" -InstallDir "$INSTDIR" -DataDir "$APPDATA\${APP_NAME}" -PgZip "$INSTDIR\pgsql.zip" -PgVersion "${PG_VERSION}" -PgPort "${PG_PORT}" -HttpPort "$HttpPort"'
   Pop $0
   ${If} $0 != 0
     MessageBox MB_OK|MB_ICONSTOP "Database setup failed (exit $0).$\r$\n$\r$\nInstall log:$\r$\n  $INSTDIR\install.log"
@@ -93,7 +129,7 @@ SectionEnd
 
 Function LaunchWebUI
   Sleep 1500
-  ExecShell "open" "http://localhost:8080/"
+  ExecShell "open" "http://localhost:$HttpPort/"
 FunctionEnd
 
 Section "Uninstall"
