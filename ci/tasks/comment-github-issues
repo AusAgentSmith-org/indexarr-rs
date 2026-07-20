@@ -12,6 +12,9 @@ for comment_file in "$comments_dir"/*.md; do
     test -n "$marker"
 
     existing=$(curl -fsS \
+        --retry 5 \
+        --retry-all-errors \
+        --retry-delay 2 \
         -H "Authorization: Bearer $GH_TOKEN" \
         -H "Accept: application/vnd.github+json" \
         "https://api.github.com/repos/$repo/issues/$issue_number/comments?per_page=100")
@@ -22,12 +25,16 @@ for comment_file in "$comments_dir"/*.md; do
         continue
     fi
 
-    jq -n --rawfile body "$comment_file" '{body:$body}' >/tmp/issue-comment.json
+    payload=$(mktemp)
+    trap 'rm -f "$payload"' EXIT HUP INT TERM
+    jq -n --rawfile body "$comment_file" '{body:$body}' >"$payload"
     curl -fsS -X POST \
         -H "Authorization: Bearer $GH_TOKEN" \
         -H "Accept: application/vnd.github+json" \
         -H "Content-Type: application/json" \
-        --data-binary @/tmp/issue-comment.json \
+        --data-binary @"$payload" \
         "https://api.github.com/repos/$repo/issues/$issue_number/comments" >/dev/null
+    rm -f "$payload"
+    trap - EXIT HUP INT TERM
     printf 'Posted resolution comment on issue #%s\n' "$issue_number"
 done
