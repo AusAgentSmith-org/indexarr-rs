@@ -26,8 +26,8 @@ jobs:
       - uses: docker/login-action@v4
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: TheDancingDeveloper
+          password: ${{ secrets.GHCR_TOKEN }}
       - name: Define immutable destination tag
         id: tags
         shell: bash
@@ -36,7 +36,6 @@ jobs:
             case "$GITHUB_REF_NAME" in v[0-9]*) ;; *) exit 1 ;; esac
             printf 'tags=%s\n' "$IMAGE:$GITHUB_REF_NAME,$IMAGE:latest,$IMAGE:sha-$GITHUB_SHA" >> "$GITHUB_OUTPUT"
           else
-            test "$GITHUB_REF_NAME" = main
             printf 'tags=%s\n' "$IMAGE:dev,$IMAGE:sha-$GITHUB_SHA" >> "$GITHUB_OUTPUT"
           fi
       - name: Build and publish destination image once
