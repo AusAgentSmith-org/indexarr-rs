@@ -69,7 +69,7 @@ ARG INDEXARR_BUILD_REVISION=unknown
 
 LABEL org.opencontainers.image.title="Indexarr" \
       org.opencontainers.image.description="Decentralized torrent indexing with DHT crawling, content classification, and P2P sync" \
-      org.opencontainers.image.source="https://github.com/AusAgentSmith-org/indexarr-rs" \
+  org.opencontainers.image.source="https://github.com/TheDancingDeveloper-org/indexarr-rs" \
       org.opencontainers.image.licenses="AGPL-3.0-only" \
       org.opencontainers.image.version="$INDEXARR_BUILD_REF" \
       org.opencontainers.image.revision="$INDEXARR_BUILD_REVISION"
